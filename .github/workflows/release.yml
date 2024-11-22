@@ -8,9 +8,9 @@ on:
         required: true
         type: choice
         options:
-        - major
-        - minor
-        - patch
+          - patch
+          - minor
+          - major
 
   pull_request:
     types: [closed]
@@ -43,7 +43,6 @@ jobs:
             exit 1
           fi
           sudo mv './semver-v0.4.3' /bin/semver
-          sudo ln -s $(pwd)/./semver-v0.4.3 /bin/semver
 
       - name: Bump version
         id: bump

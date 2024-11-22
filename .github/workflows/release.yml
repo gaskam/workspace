@@ -38,11 +38,10 @@ jobs:
 
       - name: Install semver
         run: |
-          if ! curl -L https://raw.githubusercontent.com/usvc/semver/master/init/install.sh | sh; then
+          if ! curl -oL https://github.com/usvc/semver/releases/download/v0.4.3/semver_linux_amd64 | sh; then
             echo "Failed to install semver"
             exit 1
           fi
-          sudo mv './semver-v0.4.3' /bin/semver
 
       - name: Bump version
         id: bump
@@ -59,7 +58,7 @@ jobs:
               INCREMENT="minor"
             fi
           fi
-          VERSION=$(semver bump $INCREMENT $VERSION)
+          VERSION=$(./semver-v0.4.3 bump $INCREMENT $VERSION)
           if [ $? -ne 0 ]; then
             echo "Failed to bump version"
             exit 1

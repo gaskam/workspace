@@ -22,43 +22,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-
-      - name: Install the latest verion of zig with zvm
-        run: |
-          if ! ZIG_VERSION=$(git ls-remote --tags https://github.com/ziglang/zig | awk -F'/' '{print $NF}' | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | sed 's/^v//' | sort -V | tail -n 1); then
-            echo "Failed to get the latest version of Zig"
-            ZIG_VERSION=master
-          fi
-          echo "$ZIG_VERSION"
-          
-          if ! curl https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash; then
-            echo "Failed to install ZVM"
-            exit 1
-          fi
-          source /home/runner/.profile
-          zvm --version
-
-          if ! zvm i $ZIG_VERSION; then
-            echo "Failed to install Zig"
-            exit 1
-          fi
-          zig version
-
-      - name: Install semver
-        run: |
-          if ! curl -L https://raw.githubusercontent.com/usvc/semver/master/init/install.sh | sh; then
-            echo "Failed to install semver"
-            exit 1
-          fi
-
   versioning:
-    needs: setup
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     outputs:
@@ -71,6 +35,13 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
           token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Install semver
+        run: |
+          if ! curl -L https://raw.githubusercontent.com/usvc/semver/master/init/install.sh | sh; then
+            echo "Failed to install semver"
+            exit 1
+          fi
 
       - name: Bump version
         id: bump

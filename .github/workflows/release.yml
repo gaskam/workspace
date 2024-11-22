@@ -42,6 +42,8 @@ jobs:
             echo "Failed to install semver"
             exit 1
           fi
+          sudo mv './semver-v0.4.3' /bin/semver
+          sudo ln -s $(pwd)/./semver-v0.4.3 /bin/semver
 
       - name: Bump version
         id: bump

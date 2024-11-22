@@ -47,6 +47,7 @@ jobs:
       - name: Bump version
         id: bump
         run: |
+          VERSION=$(grep -oP '^version = "\K[^"]+' build.zig.zon)
           if [ "${{ github.event_name }}" == 'workflow_dispatch' ]; then
             INCREMENT="${{ github.event.inputs.version }}"
           else
@@ -58,7 +59,7 @@ jobs:
               INCREMENT="minor"
             fi
           fi
-          VERSION=$(semver bump $INCREMENT)
+          VERSION=$(semver bump $INCREMENT $VERSION)
           if [ $? -ne 0 ]; then
             echo "Failed to bump version"
             exit 1

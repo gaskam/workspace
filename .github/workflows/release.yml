@@ -37,7 +37,7 @@ jobs:
           fi
           echo "$ZIG_VERSION"
 
-      - name: Install ZVM
+      - name: Install ZVM and zig
         run: |
           if ! curl https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash; then
             echo "Failed to install ZVM"
@@ -46,8 +46,6 @@ jobs:
           source /home/runner/.profile
           zvm --version
 
-      - name: Install Zig
-        run: |
           if ! zvm i $ZIG_VERSION; then
             echo "Failed to install Zig"
             exit 1

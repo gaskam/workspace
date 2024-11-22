@@ -42,6 +42,7 @@ jobs:
             echo "Failed to install ZVM"
             exit 1
           fi
+          zvm version
 
       - name: Install Zig
         run: |

@@ -1,0 +1,42 @@
+name: Automerge
+
+on:
+  schedule:
+    - cron: '30 06,18 * * *'
+
+  pull_request_review:
+    types:
+      - submitted
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+      - labeled
+      - unlabeled
+      - ready_for_review
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      pull-request:
+        description: Pull Request Number
+        required: false
+      review:
+        description: Review ID
+        required: false
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: reitermarkus/automerge@v2.8.0
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+          required-labels: automerge
+          pull-request: ${{ github.event.inputs.pull-request }}
+          review: ${{ github.event.inputs.review }}

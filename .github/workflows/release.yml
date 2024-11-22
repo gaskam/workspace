@@ -1,0 +1,170 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish
+        required: true
+        type: choice
+        options:
+        - major
+        - minor
+        - patch
+
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Get the latest version of Zig
+        run: |
+          if ! ZIG_VERSION=git ls-remote --tags https://github.com/ziglang/zig | awk -F'/' '{print $NF}' | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | sed 's/^v//' | sort -V | tail -n 1; then
+            echo "Failed to get the latest version of Zig"
+            ZIG_VERSION=master
+          fi
+
+      - name: Install ZVM
+        run: |
+          if ! curl https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash; then
+            echo "Failed to install ZVM"
+            exit 1
+          fi
+
+      - name: Install Zig
+        run: |
+          if ! zvm i $ZIG_VERSION; then
+            echo "Failed to install Zig"
+            exit 1
+          fi
+          zig version
+
+      - name: Install semver
+        run: |
+          if ! curl -L https://raw.githubusercontent.com/usvc/semver/master/init/install.sh | sh; then
+            echo "Failed to install semver"
+            exit 1
+          fi
+
+  versioning:
+    needs: setup
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    outputs:
+      VERSION: ${{ steps.bump.outputs.VERSION }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Bump version
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" == 'workflow_dispatch' ]; then
+            INCREMENT="${{ github.event.inputs.version }}"
+          else
+            INCREMENT="patch"
+            PR_CONTENT="${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}"
+            if echo "$PR_CONTENT" | grep -qi '\[major\]'; then
+              INCREMENT="major"
+            elif echo "$PR_CONTENT" | grep -qi '\[minor\]'; then
+              INCREMENT="minor"
+            fi
+          fi
+          VERSION=$(semver bump $INCREMENT)
+          if [ $? -ne 0 ]; then
+            echo "Failed to bump version"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Change version in build.zig.zon
+        run: |
+          sed -i "s/^version = .*/version = \"${{ steps.bump.outputs.VERSION }}\"/" build.zig.zon
+
+      - name: Change version in src/main.zig
+        run: |
+          sed -i "s/const VERSION = .*/const VERSION = \"${{ steps.bump.outputs.VERSION }}\";/" src/main.zig
+
+      - name: Archive version artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: version
+          path: build.zig.zon src/main.zig
+
+  push:
+    needs: versioning
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Download version artifact
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: version
+
+      - name: Commit version change
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add build.zig.zon src/main.zig
+          git commit -a -m "Bump version to ${{ needs.versioning.outputs.VERSION }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Push changes
+        run: |
+          git push origin HEAD:main
+        env:
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+
+  release:
+    needs: [versioning, push]
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Create release
+        run: |
+          if ! gh release view "${{ needs.versioning.outputs.VERSION }}" &>/dev/null; then
+            gh release create "${{ needs.versioning.outputs.VERSION }}" \
+              --title "Release ${{ needs.versioning.outputs.VERSION }}" \
+              --generate-notes \
+              --latest || true
+          else
+            echo "Release ${{ needs.versioning.outputs.VERSION }} already exists"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}

@@ -1,0 +1,118 @@
+name: Build
+
+on:
+  release:
+    types:
+      - created
+
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag'
+        required: false
+        default: latest
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Get the latest version of Zig
+        run: |
+          if ! ZIG_VERSION=git ls-remote --tags https://github.com/ziglang/zig | awk -F'/' '{print $NF}' | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | sed 's/^v//' | sort -V | tail -n 1; then
+            echo "Failed to get the latest version of Zig"
+            ZIG_VERSION=master
+          fi
+
+      - name: Install ZVM
+        run: |
+          if ! curl https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash; then
+            echo "Failed to install ZVM"
+            exit 1
+          fi
+
+      - name: Install Zig
+        run: |
+          if ! zvm i $ZIG_VERSION; then
+            echo "Failed to install Zig"
+            exit 1
+          fi
+          zig version
+
+      - name: Install Zip
+        run: sudo apt-get install -y zip
+
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Build
+        run: |
+          zvm use $ZIG_VERSION
+          zig build
+
+      - name: Zip executables
+        run: |
+          for file in zig-out/*; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              if [ ${filename##*.} != ${filename} ]; then
+                extension=".${filename##*.}"
+                filename=${filename%.*}
+              else
+                extension=""
+              fi
+              mv "$file" "zig-out/workspace$extension"
+              zip -m -v "zig-out/$filename.zip" "zig-out/workspace$extension"
+            fi
+          done
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: build
+          path: zig-out
+
+  release:
+    needs: build
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: build
+
+      - name: Get release tag name
+        id: get_tag_name
+        run: |
+          if [ "${{ github.event_name }}" == 'release' ]; then
+            TAG_NAME=${{ github.event.release.tag_name }}
+          else
+            if [ "${{ github.event.inputs.release_tag }}" == 'latest' ]; then
+              TAG_NAME=$(git describe --tags --abbrev=0)
+            else
+              TAG_NAME=${{ github.event.inputs.release_tag }}
+            fi
+          fi
+
+      - name: Add assets to release
+        run: |
+          gh release upload $TAG_NAME zig-out/* --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}

@@ -58,7 +58,7 @@ jobs:
               INCREMENT="minor"
             fi
           fi
-          VERSION=$(./semver-v0.4.3 bump $INCREMENT $VERSION)
+          VERSION=$(./semver_linux_amd64 bump $INCREMENT $VERSION)
           if [ $? -ne 0 ]; then
             echo "Failed to bump version"
             exit 1

@@ -29,16 +29,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4.2.2
 
-      - name: Get the latest version of Zig
+      - name: Install the latest verion of zig with zvm
         run: |
           if ! ZIG_VERSION=$(git ls-remote --tags https://github.com/ziglang/zig | awk -F'/' '{print $NF}' | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | sed 's/^v//' | sort -V | tail -n 1); then
             echo "Failed to get the latest version of Zig"
             ZIG_VERSION=master
           fi
           echo "$ZIG_VERSION"
-
-      - name: Install ZVM and zig
-        run: |
+          
           if ! curl https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash; then
             echo "Failed to install ZVM"
             exit 1

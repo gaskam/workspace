@@ -15,6 +15,14 @@ const RepoInfo = struct {
 
 const RepoList = []RepoInfo;
 
+const WorkspaceFolder = struct {
+    path: []const u8,
+};
+
+const Workspace = struct {
+    folders: []WorkspaceFolder,
+};
+
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     var GPA = std.heap.GeneralPurposeAllocator(.{}){};
@@ -52,7 +60,7 @@ pub fn main() !void {
     }
 
     const name = if (args.len >= 2 and args[1][0] != '-') try allocator.dupe(u8, args[1]) else blk: {
-        _ = try stdout.write("Please provide a user/organization name: ");
+        _ = try stdout.writeAll("Please provide a user/organization name: ");
         var input = std.ArrayList(u8).init(allocator);
         try std.io.getStdIn().reader().streamUntilDelimiter(input.writer(), '\n', 64);
         if (@import("builtin").os.tag == .windows) _ = input.pop();
@@ -67,25 +75,52 @@ pub fn main() !void {
     }
     switch (list.term.Exited) {
         0 => {
-            const parsed = try std.json.parseFromSlice(RepoList, allocator, list.stdout, .{});
+            const parsed = std.json.parseFromSlice(RepoList, allocator, list.stdout, .{}) catch |err| {
+                std.debug.print("Failed to parse repository list: {s}\n", .{list.stdout});
+                return err;
+            };
             defer parsed.deinit();
 
-            try std.fs.cwd().makeDir(args[1]);
+            try std.fs.cwd().makeDir(name);
 
             for (parsed.value) |repo| {
-                const result = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }), args[1]);
+                const result = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }), name);
                 defer {
                     allocator.free(result.stdout);
                     allocator.free(result.stderr);
                 }
                 switch (result.term.Exited) {
-                    0 => std.debug.print("{s}Cloned {s}{s}{s}\n", .{GREEN, BRIGHT_BLUE, repo.nameWithOwner, RESET}),
+                    0 => _ = try stdout.print("{s}Cloned {s}{s}{s}\n", .{GREEN, BRIGHT_BLUE, repo.nameWithOwner, RESET}),
                     1 => std.debug.print("Error: {s}\n", .{result.stderr}),
                     else => std.debug.print("Unexpected error: {} (when running\n", .{result.term.Exited}),
                 }
             }
+
+            // Generate workspace file
+            var foldersList = try std.ArrayList(WorkspaceFolder).initCapacity(allocator, parsed.value.len);
+            defer foldersList.deinit();
+            for (parsed.value) |repo| {
+                foldersList.appendAssumeCapacity(WorkspaceFolder{ .path = repo.name });
+            }
+            const folders = foldersList.items;
+
+            const workspace = Workspace{ .folders = folders };
+
+            const workspaceFilePath = try std.mem.concat(allocator, u8, &.{ name, "/workspace.code-workspace"});
+            defer allocator.free(workspaceFilePath);
+            const workspaceFile = try std.fs.cwd().createFile(workspaceFilePath, .{ });
+            defer workspaceFile.close();
+
+            var workspaceJson = std.ArrayList(u8).init(allocator);
+            defer workspaceJson.deinit();
+            try std.json.stringify(workspace, .{ }, workspaceJson.writer());
+
+            try workspaceFile.writeAll(workspaceJson.items);
         },
-        1 => std.debug.print("Error: {s}\n", .{list.stderr}),
+        1 => {
+            std.debug.print("Error: {s}\n", .{list.stderr});
+            std.debug.print("Unable to fetch repository list for {s}\n", .{name});
+        },
         else => std.debug.print("Unexpected error: {} (when running\n", .{list.term.Exited}),
     }
 }

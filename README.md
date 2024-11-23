@@ -37,7 +37,7 @@ For developers who want to contribute or build Workspace from source:
 - GitHub CLI (gh)
 - Git
 
-## Steps
+### Steps
 1. Clone the repository:
 
 ```bash

@@ -11,6 +11,10 @@ const YELLOW = "\x1b[33m";
 const RepoInfo = struct {
     name: []const u8,
     nameWithOwner: []const u8,
+    owner: struct {
+        id: []const u8,
+        login: []const u8,
+    },
 };
 
 const RepoList = []RepoInfo;
@@ -68,12 +72,13 @@ pub fn main() !void {
     };
     defer allocator.free(name);
 
-    const list = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "list", name, "--json", "nameWithOwner,name" }), null);
+    const list = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "list", name, "--json", "nameWithOwner,name,owner" }), null);
     defer {
         allocator.free(list.stdout);
         allocator.free(list.stderr);
     }
     switch (list.term.Exited) {
+        // Command ran fine, parsing the output
         0 => {
             const parsed = std.json.parseFromSlice(RepoList, allocator, list.stdout, .{}) catch |err| {
                 std.debug.print("Failed to parse repository list: {s}\n", .{list.stdout});
@@ -81,10 +86,21 @@ pub fn main() !void {
             };
             defer parsed.deinit();
 
-            try std.fs.cwd().makeDir(name);
+            // Handles if the user provides no name, which fallbacks to his own repositories
+            const ghName = parsed.value[0].owner.login;
+
+            std.fs.cwd().makeDir(ghName) catch |err| {
+                if (err == error.PathAlreadyExists) {
+                    try stdout.print("[Warning] {s}Directory {s}{s}{s} already exists\n", .{YELLOW, BRIGHT_BLUE, ghName, RESET});
+                } else {
+                    // TODO
+                    return err;
+                }
+            };
 
             for (parsed.value) |repo| {
-                const result = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }), name);
+                // TODO: parallel cloning of repositories
+                const result = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }), ghName);
                 defer {
                     allocator.free(result.stdout);
                     allocator.free(result.stderr);
@@ -106,7 +122,7 @@ pub fn main() !void {
 
             const workspace = Workspace{ .folders = folders };
 
-            const workspaceFilePath = try std.mem.concat(allocator, u8, &.{ name, "/workspace.code-workspace"});
+            const workspaceFilePath = try std.mem.concat(allocator, u8, &.{ ghName, "/workspace.code-workspace"});
             defer allocator.free(workspaceFilePath);
             const workspaceFile = try std.fs.cwd().createFile(workspaceFilePath, .{ });
             defer workspaceFile.close();
@@ -117,6 +133,7 @@ pub fn main() !void {
 
             try workspaceFile.writeAll(workspaceJson.items);
         },
+        // Probably just an invalid user/organization name
         1 => {
             std.debug.print("Error: {s}\n", .{list.stderr});
             std.debug.print("Unable to fetch repository list for {s}\n", .{name});

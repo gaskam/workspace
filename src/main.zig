@@ -64,7 +64,7 @@ pub fn main() !void {
     }
 
     const name = if (args.len >= 2 and args[1][0] != '-') try allocator.dupe(u8, args[1]) else blk: {
-        _ = try stdout.writeAll("Please provide a user/organization name: ");
+        _ = try stdout.writeAll("Please provide a user/organization name(defaults to yourself): ");
         var input = std.ArrayList(u8).init(allocator);
         try std.io.getStdIn().reader().streamUntilDelimiter(input.writer(), '\n', 64);
         if (@import("builtin").os.tag == .windows) _ = input.pop();

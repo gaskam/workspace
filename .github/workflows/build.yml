@@ -104,11 +104,6 @@ jobs:
       - name: Add assets to release
         run: |
           ls zig-out/
-          for file in zig-out/*; do
-            if [ -f "$file" ]; then
-              echo "Uploading $file"
-              gh release upload $TAG_NAME "$file" --clobber
-            fi
-          done
+          gh release upload $TAG_NAME $(ls zig-out | tr '\n' ' ' | sed 's/ $//') --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}

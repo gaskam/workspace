@@ -175,8 +175,10 @@ curl --fail --location --progress-bar --output "$exe.zip" "$workspace_uri" ||
 unzip -oqd "$bin_dir" "$exe.zip" ||
     error 'Failed to extract workspace'
 
-mv "$bin_dir/$exe_name" "$exe" ||
-    error 'Failed to move extracted workspace to destination'
+if "$bin_dir/$exe_name" != "$exe"; then
+    mv "$bin_dir/$exe_name" "$exe" ||
+        error 'Failed to move extracted workspace to destination'
+fi
 
 chmod +x "$exe" ||
     error 'Failed to set permissions on workspace executable'

@@ -75,13 +75,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-          token: ${{ secrets.WORKFLOW_TOKEN }}
-
       - name: Download build artifacts
         uses: actions/download-artifact@v4.1.8
         with:

@@ -152,9 +152,9 @@ esac
 exe_name=workspace
 
 if [[ $# = 0 ]]; then
-    workspace_uri=$github_repo/releases/latest/download/workspace-$target.zig
+    workspace_uri=$github_repo/releases/latest/download/workspace-$target.zip
 else
-    workspace_uri=$github_repo/releases/download/$1/workspace-$target.zig
+    workspace_uri=$github_repo/releases/download/$1/workspace-$target.zip
 fi
 
 install_env=WORKSPACE_INSTALL
@@ -169,7 +169,7 @@ if [[ ! -d $bin_dir ]]; then
         error "Failed to create install directory \"$bin_dir\""
 fi
 
-curl --fail --location --progress-bar --output "$exe.zig" "$workspace_uri" ||
+curl --fail --location --progress-bar --output "$exe.zip" "$workspace_uri" ||
     error "Failed to download workspace from \"$workspace_uri\""
 
 unzip -oqd "$bin_dir" "$exe.zip" ||

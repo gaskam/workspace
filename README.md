@@ -10,7 +10,7 @@ Workspace is a powerful application designed to install and manage all your repo
 To install Workspace, run the installation script:
 
 ```bash
-curl -fsSL https://github.gaskam.com/workspace/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.sh | bash
 ```
 
 This script will:

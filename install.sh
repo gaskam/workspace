@@ -160,7 +160,7 @@ fi
 install_env=WORKSPACE_INSTALL
 bin_env=\$$install_env/bin
 
-install_dir={!install_env:-$HOME/.workspace}
+install_dir=${!install_env:-$HOME/.workspace}
 bin_dir=$install_dir/bin
 exe=$bin_dir/workspace
 

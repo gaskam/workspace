@@ -59,7 +59,7 @@ jobs:
                 extension=""
               fi
               mv "$file" "zig-out/workspace$extension"
-              zip -m -v "zig-out/$filename.zip" "zig-out/workspace$extension"
+              zip -m -j -v "zig-out/$filename.zip" "zig-out/workspace$extension"
             fi
           done
 

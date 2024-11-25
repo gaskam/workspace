@@ -40,7 +40,7 @@ jobs:
         id: bump
         run: |
           sudo chmod +x bump.sh
-          VERSION=$(grep -E '.version = "(.*)",' build.zig.zon)
+          VERSION=$(grep -EoP '\.version = "([^"]*)",' build.zig.zon)
           echo "Current version: $VERSION"
           if [ "${{ github.event_name }}" == 'workflow_dispatch' ]; then
             INCREMENT="${{ github.event.inputs.version }}"

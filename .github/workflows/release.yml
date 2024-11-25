@@ -64,7 +64,7 @@ jobs:
 
       - name: Change version in build.zig.zon
         run: |
-          sed -i "s/^version = .*/version = \"${{ steps.bump.outputs.VERSION }}\"/" build.zig.zon
+          sed -i 's/\.version = "[0-9]\.[0-9]\.[0-9]"/\.version = "${{ steps.bump.outputs.VERSION }}"/' build.zig.zon
 
       - name: Change version in src/main.zig
         run: |
@@ -110,9 +110,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
 
   release:
-    needs: [versioning, push]
+    needs: [push, versioning]
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository

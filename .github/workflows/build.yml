@@ -20,7 +20,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4.2.2
 
-      - name: Install the latest verion of zig with zvm
+      - name: Install the latest verion of zig with zvm and build
         run: |
           if ! ZIG_VERSION=$(git ls-remote --tags https://github.com/ziglang/zig | awk -F'/' '{print $NF}' | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | sed 's/^v//' | sort -V | tail -n 1); then
             echo "Failed to get the latest version of Zig"
@@ -41,14 +41,11 @@ jobs:
           fi
           zig version
 
-      - name: Install Zip
-        run: sudo apt-get install -y zip
-
-      - name: Build
-        run: |
-          source /home/runner/.profile
           zvm use $ZIG_VERSION
           zig build
+
+      - name: Install Zip
+        run: sudo apt-get install -y zip
 
       - name: Zip executables
         run: |

@@ -75,10 +75,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4.1.8
         with:
           name: build
+          path: zig-out
 
       - name: Get release tag name
         id: get_tag_name
@@ -96,7 +104,7 @@ jobs:
 
       - name: Add assets to release
         run: |
-          ls
-          gh release upload $TAG_NAME $(ls | tr '\n' ' ' | sed 's/ $//') --clobber
+          ls zig-out/
+          gh release upload $TAG_NAME $(ls zig-out | tr '\n' ' ' | sed 's/ $//') --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}

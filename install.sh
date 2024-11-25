@@ -178,7 +178,7 @@ unzip -oqd "$bin_dir" "$exe.zip" ||
 chmod +x "$exe" ||
     error 'Failed to set permissions on workspace executable'
 
-rm -r "$bin_dir/" "$exe.zip"
+rm -r "$exe.zip"
 
 tildify() {
     if [[ $1 = $HOME/* ]]; then

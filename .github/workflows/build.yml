@@ -105,6 +105,6 @@ jobs:
       - name: Add assets to release
         run: |
           ls zig-out/
-          gh release upload $TAG_NAME $(ls zig-out | tr '\n' ' ' | sed 's/ $//') --clobber
+          gh release upload $TAG_NAME zig-out/* --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}

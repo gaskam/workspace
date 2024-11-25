@@ -99,6 +99,7 @@ jobs:
               TAG_NAME=${{ github.event.inputs.release_tag }}
             fi
           fi
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
 
       - name: Add assets to release
         run: |

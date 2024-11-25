@@ -46,6 +46,7 @@ jobs:
 
       - name: Build
         run: |
+          source /home/runner/.profile
           zvm use $ZIG_VERSION
           zig build
 

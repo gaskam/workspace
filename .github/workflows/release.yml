@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version to publish
+        description: Version to publish (M.m.p)
         required: true
         type: choice
         options:
-          - patch
-          - minor
-          - major
+          - p
+          - m
+          - M
 
   pull_request:
     types: [closed]
@@ -36,13 +36,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.WORKFLOW_TOKEN }}
 
-      - name: Install semver
-        run: |
-          if ! curl -oL https://github.com/usvc/semver/releases/download/v0.4.3/semver_linux_amd64 | sh; then
-            echo "Failed to install semver"
-            exit 1
-          fi
-
       - name: Bump version
         id: bump
         run: |
@@ -50,15 +43,15 @@ jobs:
           if [ "${{ github.event_name }}" == 'workflow_dispatch' ]; then
             INCREMENT="${{ github.event.inputs.version }}"
           else
-            INCREMENT="patch"
+            INCREMENT="p"
             PR_CONTENT="${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}"
             if echo "$PR_CONTENT" | grep -qi '\[major\]'; then
-              INCREMENT="major"
+              INCREMENT="M"
             elif echo "$PR_CONTENT" | grep -qi '\[minor\]'; then
-              INCREMENT="minor"
+              INCREMENT="m"
             fi
           fi
-          VERSION=$(semver bump $INCREMENT $VERSION)
+          VERSION=$(./bump.sh -$INCREMENT $VERSION)
           if [ $? -ne 0 ]; then
             echo "Failed to bump version"
             exit 1

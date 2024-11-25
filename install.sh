@@ -175,13 +175,13 @@ curl --fail --location --progress-bar --output "$exe.zip" "$workspace_uri" ||
 unzip -oqd "$bin_dir" "$exe.zip" ||
     error 'Failed to extract workspace'
 
-mv "$bin_dir/workspace-$target/$exe_name" "$exe" ||
+mv "$bin_dir/$exe_name" "$exe" ||
     error 'Failed to move extracted workspace to destination'
 
 chmod +x "$exe" ||
     error 'Failed to set permissions on workspace executable'
 
-rm -r "$bin_dir/workspace-$target" "$exe.zip"
+rm -r "$bin_dir/" "$exe.zip"
 
 tildify() {
     if [[ $1 = $HOME/* ]]; then

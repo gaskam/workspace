@@ -42,22 +42,23 @@ jobs:
           sudo chmod +x bump.sh
           VERSION=$(sed -n 's/.*\.version = "\([0-9]\.[0-9]\.[0-9]\)".*/\1/p' build.zig.zon)
           echo "Current version: $VERSION"
-          if [ "${{ github.event_name }}" == 'workflow_dispatch' ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             INCREMENT="${{ github.event.inputs.version }}"
           else
             INCREMENT="p"
-            PR_CONTENT="${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}"
-            if echo "$PR_CONTENT" | grep -qi '\[major\]'; then
+            if [[ "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" =~ \[major\] ]]; then
               INCREMENT="M"
-            elif echo "$PR_CONTENT" | grep -qi '\[minor\]'; then
+            elif [[ "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" =~ \[minor\] ]]; then
               INCREMENT="m"
             fi
           fi
+          echo "Determined increment: $INCREMENT"
           VERSION=$(./bump.sh -$INCREMENT $VERSION)
           if [ $? -ne 0 ]; then
             echo "Failed to bump version"
             exit 1
           fi
+          echo "New version: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}

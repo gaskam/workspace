@@ -4,4 +4,3 @@ zig-cache/
 zig-out/
 test.sh
 temp/
-install.ps1

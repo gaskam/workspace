@@ -1,5 +1,5 @@
 const std = @import("std");
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const isWindows = @import("builtin").os.tag == .windows;
 
 const Commands = enum {

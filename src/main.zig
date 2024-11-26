@@ -143,6 +143,38 @@ pub fn main() !void {
         .version => {
             try log(.info, "{s}", .{VERSION});
         },
+        .update => {
+            const updateCommand = if (isWindows)
+                &[_][]const u8{
+                    "powershell.exe",
+                    "-Command",
+                    "irm raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1 | iex",
+                }
+            else
+                &[_][]const u8{
+                    "sh",
+                    "-c",
+                    "curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.sh | bash",
+                };
+
+            const updateResult = try run(
+                allocator,
+                @constCast(updateCommand),
+                null,
+            );
+            defer {
+                allocator.free(updateResult.stdout);
+                allocator.free(updateResult.stderr);
+            }
+
+            switch (updateResult.term.Exited) {
+                0 => try log(.info, "Successfully updated Workspace\n", .{}),
+                else => {
+                    try log(.err, "Failed to update Workspace: {s}\n", .{updateResult.stderr});
+                    return error.UpdateFailed;
+                },
+            }
+        },
         // implicitly also catches `help` command
         else => {
             const helpMessage = 

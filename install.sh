@@ -6,7 +6,7 @@ set -euo pipefail
 platform=$(uname -ms)
 if [[ ${OS:-} = Windows_NT ]]; then
     if [[ $platform != MINGW64* ]]; then
-        powershell -c "irm raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1|iex"
+        powershell -c "irm raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1 | iex"
         exit $?
     fi
 fi

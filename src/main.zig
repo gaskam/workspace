@@ -1,5 +1,5 @@
 const std = @import("std");
-const VERSION = "0.2.1";
+const VERSION = "0.3.0";
 const isWindows = @import("builtin").os.tag == .windows;
 const MAX_INPUT_LENGTH = 64;
 

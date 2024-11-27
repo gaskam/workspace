@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+  release:
+    types: [published]
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,9 +28,6 @@ jobs:
       
       - name: Setup GitHub CLI and update version
         run: |
-          # Setup GitHub CLI
-          gh auth login --with-token <<< "${{ secrets.WORKFLOW_TOKEN }}"
-          
           # Get latest version and update INSTALL file
           VERSION=$(gh release list -L 1 --repo gaskam/workspace --exclude-drafts --exclude-pre-releases --json tagName,isDraft,isPrerelease -q ".[] | select(.isDraft==false and .isPrerelease==false) | .tagName")
           if [ -z "$VERSION" ]; then

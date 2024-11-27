@@ -3,10 +3,6 @@ name: GitHub Actions Version Updater
 on:
   schedule:
     - cron:  '30 06 * * *'
-  
-  push:
-    branches:
-      - main
 
   release:
     types: [published]

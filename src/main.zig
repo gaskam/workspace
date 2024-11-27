@@ -327,29 +327,34 @@ fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, p
 }
 
 fn checkForUpdates(allocator: std.mem.Allocator) !bool {
-    const result = try run(allocator, @constCast(&[_][]const u8{ 
-        "gh", "release", "list", "-L", "1",
-        "--repo", "gaskam/workspace",
-        "--exclude-drafts", "--exclude-pre-releases",
-        "--json", "tagName,isDraft,isPrerelease",
-        "-q", ".[] | select(.isDraft==false and .isPrerelease==false) | .tagName"
-    }), null);
-    defer {
-        allocator.free(result.stdout);
-        allocator.free(result.stderr);
+    const content = fetchUrlContent(allocator, "https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/INSTALL") catch |err| {
+        try log(.err, "Failed to check for updates: {!}", .{err});
+        return false;
+    };
+    defer allocator.free(content);
+
+    // Trim any whitespace/newlines from the content
+    const latest_version = std.mem.trim(u8, content, &std.ascii.whitespace);
+    return !std.mem.eql(u8, latest_version, VERSION);
+}
+
+fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u8 {
+    var client = std.http.Client{ .allocator = allocator };
+    defer client.deinit();
+
+    var buffer: [1024]u8 = undefined;
+    var req = try client.open(.GET, try std.Uri.parse(url), .{ .server_header_buffer = &buffer });
+    defer req.deinit();
+
+    try req.send();
+    try req.wait();
+
+    if (req.response.status != .ok) {
+        return error.HttpError;
     }
 
-    switch (result.term.Exited) {
-        0 => {
-            // Trim any whitespace/newlines from the version string
-            const latestVersion = std.mem.trim(u8, result.stdout, &std.ascii.whitespace);
-            return !std.mem.eql(u8, latestVersion, VERSION);
-        },
-        else => {
-            try log(.err, "Failed to check for updates: {s}", .{result.stderr});
-            return false;
-        },
-    }
+    const body = try req.reader().readAllAlloc(allocator, 1024 * 1024);
+    return body;
 }
 
 fn promptName(

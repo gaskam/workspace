@@ -9,6 +9,7 @@ Workspace is a powerful application designed to install and manage all your repo
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+  - [Limitations](#limitations)
 - [Development](#development)
   - [Prerequisites](#prerequisites)
   - [Steps](#steps)
@@ -59,6 +60,14 @@ For **updating** Workspace:
 ```bash
 workspace update
 ```
+
+### Limitations
+Consider some limitations:
+
+"If a repository owner exceeds 100,000 repositories, some UI experiences and API functionality may be degraded." - [GitHub Repo](https://docs.github.com/en/repositories/creating-and-managing-repositories/repository-limits) 
+
+In our case, even though GitHub allows us to retrieve all repositories, we may not be able to clone them all, due to the limitations of your system. In fact, we use one process per repository, so if you have a lot of repositories, it's impossible to clone them all at once. Just imagine you have 100,000 repositories, and you want to clone them all at once (over 100,000 processes will be created, and your system will be overloaded)!
+In future updates, we'll be able to add functionality for cloning repositories to limit the number of processes created with a flag on the command like `--limit` or `--max-processes`.
 
 ## Development
 For developers who want to contribute or build Workspace from source:

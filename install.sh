@@ -331,4 +331,4 @@ if [[ $refresh_command ]]; then
     info_bold "  $refresh_command"
 fi
 
-info_bold "  workspace --help"
+info_bold "  workspace help"

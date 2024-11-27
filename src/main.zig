@@ -93,13 +93,13 @@ pub fn main() !void {
                         return;
                     }
                     // Handles if the user provides no name, which fallbacks to his own repositories
-                    const ghName = parsed.value[0].owner.login;
+                    const folderPath = if (args.len <= 3) parsed.value[0].owner.login else args[3];
 
-                    try createFolder(ghName);
+                    try createFolder(folderPath);
 
                     for (parsed.value) |repo| {
                         // TODO: parallel cloning of repositories
-                        const result = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }), ghName);
+                        const result = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }), folderPath);
                         defer {
                             allocator.free(result.stdout);
                             allocator.free(result.stderr);
@@ -121,7 +121,7 @@ pub fn main() !void {
 
                     const workspace = Workspace{ .folders = folders };
 
-                    const workspaceFilePath = try std.mem.concat(allocator, u8, &.{ ghName, "/workspace.code-workspace" });
+                    const workspaceFilePath = try std.mem.concat(allocator, u8, &.{ folderPath, "/workspace.code-workspace" });
                     defer allocator.free(workspaceFilePath);
 
                     const workspaceFile = try std.fs.cwd().createFile(workspaceFilePath, .{});
@@ -220,13 +220,10 @@ fn run(
     args: [][]const u8,
     subpath: ?[]const u8,
 ) !std.process.Child.RunResult {
-    const cwd = try std.fs.cwd().realpathAlloc(allocator, subpath orelse ".");
-    defer allocator.free(cwd);
-
     const cp = try std.process.Child.run(.{
         .allocator = allocator,
         .argv = args,
-        .cwd = cwd,
+        .cwd = subpath,
     });
 
     return cp;

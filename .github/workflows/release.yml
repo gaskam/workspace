@@ -71,6 +71,10 @@ jobs:
         run: |
           sed -i "s/const VERSION = .*/const VERSION = \"${{ steps.bump.outputs.VERSION }}\";/" src/main.zig
 
+      - name: Update version in INSTALL
+        run: |
+          echo "${{ steps.bump.outputs.VERSION }}" > INSTALL
+
       - name: Archive version artifact
         uses: actions/upload-artifact@v4.4.3
         with:
@@ -99,7 +103,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add build.zig.zon src/main.zig
+          git add build.zig.zon src/main.zig INSTALL
           git commit -a -m "Bump version to ${{ needs.versioning.outputs.VERSION }}"
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}

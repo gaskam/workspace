@@ -1,6 +1,6 @@
 const std = @import("std");
 const processHelper = @import("process_helper.zig");
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 const isWindows = @import("builtin").os.tag == .windows;
 const MAX_INPUT_LENGTH = 64;
 

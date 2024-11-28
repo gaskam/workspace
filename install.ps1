@@ -97,8 +97,6 @@ function Install-Workspace {
     [bool]$ForceBaseline = $False
   );
 
-  Write-Output "Installing Workspace..."
-
   $Arch = "x86_64"
   $IsBaseline = $ForceBaseline
   if (!$IsBaseline) {
@@ -112,6 +110,7 @@ function Install-Workspace {
   $WorkspaceBin = mkdir -Force "${WorkspaceRoot}\bin"
 
   try {
+    Write-Output "Installing Workspace ${Version}..."
     Remove-Item "${WorkspaceBin}\workspace.exe" -Force
   } catch [System.Management.Automation.ItemNotFoundException] {
     # ignore

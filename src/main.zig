@@ -436,6 +436,5 @@ fn spawnUpdater(allocator: std.mem.Allocator) !void {
         try log(.err, "Failed to spawn update process: {s}", .{@errorName(err)});
         return UpdateError.SpawnUpdateFailed;
     };
-
-    try log(.info, "Update process started. Please wait...", .{});
+    std.process.exit(0);
 }

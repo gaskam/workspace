@@ -92,6 +92,7 @@ function Get-Env {
 # The installation of workspace is it's own function so that in the unlikely case the $IsBaseline check fails, we can do a recursive call.
 # There are also lots of sanity checks out of fear of anti-virus software or other weird Windows things happening.
 function Install-Workspace {
+  Write-Output "Installing Workspace..."
   param(
     [string]$Version,
     [bool]$ForceBaseline = $False

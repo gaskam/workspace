@@ -164,6 +164,8 @@ install_dir=${!install_env:-$HOME/.workspace}
 bin_dir=$install_dir/bin
 exe=$bin_dir/workspace
 
+echo "Installing Workspace..."
+
 if [[ ! -d $bin_dir ]]; then
     mkdir -p "$bin_dir" ||
         error "Failed to create install directory \"$bin_dir\""

@@ -1,7 +1,11 @@
 const std = @import("std");
+const processHelper = @import("process_helper.zig");
 const VERSION = "0.3.0";
 const isWindows = @import("builtin").os.tag == .windows;
 const MAX_INPUT_LENGTH = 64;
+
+const spawn = processHelper.spawn;
+const wait = processHelper.wait;
 
 const CommandError = error{
     GithubCliNotFound,
@@ -66,27 +70,6 @@ const Workspace = struct {
     folders: []WorkspaceFolder,
 };
 
-const CloneTask = struct {
-    repo: RepoInfo,
-    folderPath: []const u8,
-    allocator: std.mem.Allocator,
-
-    fn init(allocator: std.mem.Allocator, repo: RepoInfo, folderPath: []const u8) !*CloneTask {
-        const task = try allocator.create(CloneTask);
-        task.* = .{
-            .repo = repo,
-            .folderPath = try allocator.dupe(u8, folderPath),
-            .allocator = allocator,
-        };
-        return task;
-    }
-
-    fn deinit(self: *CloneTask) void {
-        self.allocator.free(self.folderPath);
-        self.allocator.destroy(self);
-    }
-};
-
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     var GPA = std.heap.GeneralPurposeAllocator(.{}){};
@@ -128,19 +111,27 @@ pub fn main() !void {
 
                     try createFolder(folderPath);
 
-                    var threads = std.ArrayList(std.Thread).init(allocator);
-                    defer threads.deinit();
+                    var processes = std.ArrayList(std.process.Child).init(allocator);
+                    defer processes.deinit();
 
-                    // Create a thread for each repository
+                    // Create a process for each repository
                     for (parsed.value) |repo| {
-                        const task = try CloneTask.init(allocator, repo, folderPath);
-                        const thread = try std.Thread.spawn(.{}, cloneWorker, .{task});
-                        try threads.append(thread);
+                        const process = try spawn(allocator, &[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }, folderPath);
+                        try processes.append(process);
                     }
 
-                    // Wait for all threads to complete
-                    for (threads.items) |thread| {
-                        thread.join();
+                    // Wait for all processes to complete
+                    for (processes.items, 0..) |process, i| {
+                        const result = try wait(allocator, @constCast(&process));
+                        defer {
+                            allocator.free(result.stdout);
+                            allocator.free(result.stderr);
+                        }
+                        switch (result.term.Exited) {
+                            0 => try log(.cloned, "{s}{s}{s}", .{ Colors.brightBlue.code(), parsed.value[i].nameWithOwner, Colors.reset.code() }),
+                            1 => try log(.err, "Error: {s}", .{result.stderr}),
+                            else => try log(.err, "Unexpected error: {d} (when cloning {s})\n{s}", .{ result.term.Exited, parsed.value[i].nameWithOwner, result.stderr }),
+                        }
                     }
 
                     // Generate workspace file
@@ -259,22 +250,6 @@ pub fn main() !void {
                 try log(.err, "Unknown command: {s}", .{args[1]});
             }
         },
-    }
-}
-
-fn cloneWorker(task: *CloneTask) !void {
-    defer task.deinit();
-    
-    const result = try run(task.allocator, @constCast(&[_][]const u8{ "gh", "repo", "clone", task.repo.nameWithOwner }), task.folderPath);
-    defer {
-        task.allocator.free(result.stdout);
-        task.allocator.free(result.stderr);
-    }
-
-    switch (result.term.Exited) {
-        0 => try log(.cloned, "{s}{s}{s}", .{ Colors.brightBlue.code(), task.repo.nameWithOwner, Colors.reset.code() }),
-        1 => try log(.err, "Error: {s}", .{result.stderr}),
-        else => try log(.err, "Unexpected error: {d} (when cloning {s})\n{s}", .{ result.term.Exited, task.repo.nameWithOwner, result.stderr }),
     }
 }
 

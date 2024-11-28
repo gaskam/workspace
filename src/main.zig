@@ -180,36 +180,10 @@ pub fn main() !void {
                 try log(.info, "Version: {s}", .{VERSION});
                 return;
             }
-            const updateCommand = if (isWindows)
-                &[_][]const u8{
-                    "powershell.exe",
-                    "-Command",
-                    "irm raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1 | iex",
-                }
-            else
-                &[_][]const u8{
-                    "sh",
-                    "-c",
-                    "curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.sh | bash",
-                };
 
-            const updateResult = try run(
-                allocator,
-                @constCast(updateCommand),
-                null,
-            );
-            defer {
-                allocator.free(updateResult.stdout);
-                allocator.free(updateResult.stderr);
-            }
-
-            switch (updateResult.term.Exited) {
-                0 => try log(.info, "Successfully updated Workspace", .{}),
-                else => {
-                    try log(.err, "Failed to update Workspace: {s}\nPlease try the install command: `curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.sh | bash`", .{updateResult.stderr});
-                    return;
-                },
-            }
+            try log(.info, "Starting update process...", .{});
+            try spawnUpdater(allocator);
+            return;
         },
         .ziglove => {
             try log(.info, "We love {s}Zig{s} too!\n\nLet's support them on {s}https://github.com/ziglang/zig{s}", .{ Colors.yellow.code(), Colors.reset.code(), Colors.green.code(), Colors.reset.code() });
@@ -429,4 +403,39 @@ fn log(
     }
     try stdout.print(message, args);
     try stdout.writeByte('\n');
+}
+
+const UpdateError = error{
+    CreateProcessFailed,
+    SpawnUpdateFailed,
+};
+
+fn spawnUpdater(allocator: std.mem.Allocator) !void {
+    var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const self_path = try std.fs.selfExePath(&buffer);
+    const self_dir = std.fs.path.dirname(self_path) orelse ".";
+
+    const args = if (isWindows)
+        &[_][]const u8{
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-Command",
+            "(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1') | Invoke-Expression",
+        }
+    else
+        &[_][]const u8{ "sh", "-c", "curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.sh | bash" };
+
+    var child = std.process.Child.init(args, allocator);
+    child.stdin_behavior = .Ignore;
+    child.stdout_behavior = .Inherit;
+    child.stderr_behavior = .Inherit;
+    child.cwd = self_dir;
+
+    child.spawn() catch |err| {
+        try log(.err, "Failed to spawn update process: {s}", .{@errorName(err)});
+        return UpdateError.SpawnUpdateFailed;
+    };
+
+    try log(.info, "Update process started. Please wait...", .{});
 }

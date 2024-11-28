@@ -138,7 +138,7 @@ function Install-Workspace {
   $ZipPath = "${WorkspaceBin}\$Target.zip"
 
   $DisplayVersion = $(
-    if ($Version -eq "latest") { "Workspace" }
+    if ($Version -eq "latest") { "latest" }
     elseif ($Version -match "^\d+\.\d+\.\d+$") { "Workspace $($Version.Substring(4))" }
     else { "Workspace tag='${Version}'" }
   )

@@ -110,7 +110,6 @@ function Install-Workspace {
   $WorkspaceBin = mkdir -Force "${WorkspaceRoot}\bin"
 
   try {
-    Write-Output "Installing Workspace ${Version}..."
     Remove-Item "${WorkspaceBin}\workspace.exe" -Force
   } catch [System.Management.Automation.ItemNotFoundException] {
     # ignore
@@ -139,7 +138,7 @@ function Install-Workspace {
   $ZipPath = "${WorkspaceBin}\$Target.zip"
 
   $DisplayVersion = $(
-    if ($Version -eq "latest") { "latest" }
+    if ($Version -eq "latest") { "Workspace" }
     elseif ($Version -match "^\d+\.\d+\.\d+$") { "Workspace $($Version.Substring(4))" }
     else { "Workspace tag='${Version}'" }
   )

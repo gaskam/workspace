@@ -90,7 +90,7 @@ cd workspace
 2. Build the application:
 
 ```bash
-zig build -Drelease-fast
+zig build
 ```
 
 3. Run the built binary:

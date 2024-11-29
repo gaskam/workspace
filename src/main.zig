@@ -114,8 +114,15 @@ pub fn main() !void {
                     var processes = std.ArrayList(std.process.Child).init(allocator);
                     defer processes.deinit();
 
+                    var outputFolder = try std.fs.cwd().openDir(folderPath, .{});
+                    defer outputFolder.close();
+
                     // Create a process for each repository
                     for (parsed.value) |repo| {
+                        if (!try isEmptyFolder(outputFolder, repo.name)) {
+                            try log(.warning, "Folder {s} is not empty, cancelling clone for this repo.\n", .{folderPath});
+                            continue;
+                        }
                         const process = try spawn(allocator, &[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }, folderPath);
                         try processes.append(process);
                     }
@@ -273,6 +280,44 @@ fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, p
     const file = try std.fs.cwd().createFile(workspaceFilePath, .{});
     defer file.close();
     try file.writeAll(workspaceJson.items);
+}
+
+fn isEmptyFolder(
+    folder: std.fs.Dir,
+    repoName: []const u8,
+) !bool {
+    var dir = folder.openDir(repoName, .{ .access_sub_paths = false, .iterate = true }) catch |err| {
+        switch (err) {
+            error.FileNotFound => return true,
+            error.NotDir => try log(.err, "Path is not a directory: {s}\n", .{repoName}),
+            error.AccessDenied => try log(.err, "Access denied when opening directory: {s}\n", .{repoName}),
+            error.SymLinkLoop => try log(.err, "Path is a symlink loop (path: {s})", .{repoName}),
+            error.ProcessFdQuotaExceeded => {
+                try log(.err, "Process: too much open file handles (cancelling clone failcheck)", .{});
+                return true;
+            },
+            error.NameTooLong => {
+                try log(.err, "Path name is too long for fylesystem (cancelling clone failcheck)", .{});
+                return true;
+            },
+            error.SystemFdQuotaExceeded => {
+                try log(.err, "System: too much open file handles... Aborting", .{});
+                return err;
+            },
+            error.NoDevice => try log(.err, "The directory doesn't seem to be on a valid device. This shouldn't happen.", .{}),
+            error.SystemResources => try log(.err, "Too much system ressource usage (cancelling clone failcheck)", .{}),
+            error.InvalidUtf8 => try log(.err, "Invalid UTF-8 in repository name", .{}),
+            error.InvalidWtf8 => try log(.err, "Invalid WTF-8 in repository name", .{}),
+            error.BadPathName => try log(.err, "Invalid pathname (in repository name)", .{}),
+            error.DeviceBusy => try log(.err, "Device too busy", .{}),
+            error.NetworkNotFound => try log(.err, "Network device was not found :(", .{}),
+            error.Unexpected => try log(.err, "Unexpected posix error (please report to https://github.com/gaskam/workspace/issues/): {!}", .{err}),
+        }
+        return false;
+    };
+    defer dir.close();
+    var iterator = dir.iterate();
+    return try iterator.next() == null;
 }
 
 fn checkForUpdates(allocator: std.mem.Allocator) !bool {

@@ -29,7 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/in
 ```
 
 For **Windows PowerShell**:
-```powershell
+```bash
 irm raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1 | iex
 ```
 

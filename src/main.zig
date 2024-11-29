@@ -1,56 +1,37 @@
+//! Workspace is a CLI tool for managing GitHub repositories.
+//! It allows users to clone all repositories from a user or organization
+//! and automatically creates a VSCode workspace configuration.
+
 const std = @import("std");
-const processHelper = @import("process_helper.zig");
+const processHelper = @import("helpers/process.zig");
+const logHelper = @import("helpers/log.zig");
+
+/// Core configuration constants
 const VERSION = "0.3.2";
 const isWindows = @import("builtin").os.tag == .windows;
 const MAX_INPUT_LENGTH = 64;
+const MAX_HTTP_BUFFER = 256;
 
+/// Process helper aliases
 const spawn = processHelper.spawn;
 const wait = processHelper.wait;
+const run = processHelper.run;
 
-const CommandError = error{
-    GithubCliNotFound,
-    CommandFailed,
-};
+/// Colors helper aliases
+const log = logHelper.log;
+const Colors = logHelper.Colors;
 
+/// Available CLI commands
 const Commands = enum {
-    clone,
-    help,
-    version,
-    update,
-    upgrade,
-    ziglove,
+    clone, // Clone repositories from a user/organization
+    help, // Display help information
+    version, // Show current version
+    update, // Update to latest version
+    upgrade, // Alias for update
+    ziglove, // Easter egg
 };
 
-const Colors = enum {
-    reset,
-    brightBlue,
-    green,
-    yellow,
-    red,
-    blue,
-    magenta,
-    cyan,
-    white,
-    brightBlack,
-
-    const colorCodes = [@typeInfo(Colors).Enum.fields.len][]const u8{
-        "\x1b[0m", // reset
-        "\x1b[94m", // brightBlue
-        "\x1b[32m", // green
-        "\x1b[33m", // yellow
-        "\x1b[31m", // red
-        "\x1b[34m", // blue
-        "\x1b[35m", // magenta
-        "\x1b[36m", // cyan
-        "\x1b[37m", // white
-        "\x1b[90m", // brightBlack
-    };
-
-    inline fn code(self: Colors) []const u8 {
-        return colorCodes[@intFromEnum(self)];
-    }
-};
-
+/// GitHub repository information structure
 const RepoInfo = struct {
     name: []const u8,
     nameWithOwner: []const u8,
@@ -62,28 +43,30 @@ const RepoInfo = struct {
 
 const RepoList = []RepoInfo;
 
+/// Structure representing VSCode workspace folders
 const WorkspaceFolder = struct {
     path: []const u8,
 };
 
+/// Main VSCode workspace configuration structure
 const Workspace = struct {
     folders: []WorkspaceFolder,
 };
 
+/// Entry point of the application.
+/// Handles command-line arguments and dispatches to appropriate handlers.
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
+    // Initialize memory allocators
     var GPA = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = GPA.deinit();
-    var TSA = std.heap.ThreadSafeAllocator{
-        .child_allocator = GPA.allocator(),
-    };
-    const allocator = TSA.allocator();
+    const allocator = GPA.allocator();
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
     const command = std.meta.stringToEnum(Commands, if (args.len >= 2) args[1] else "help") orelse Commands.help;
     switch (command) {
         .clone => {
+            // Get repository owner name (user/org) from args or prompt
             const name = if (args.len >= 3) try allocator.dupe(u8, args[2]) else try promptName(allocator);
             defer allocator.free(name);
 
@@ -97,13 +80,13 @@ pub fn main() !void {
                 // Command ran fine, parsing the output
                 0 => {
                     const parsed = std.json.parseFromSlice(RepoList, allocator, list.stdout, .{}) catch |err| {
-                        std.debug.print("Failed to parse repository list: {s}\n", .{list.stdout});
+                        try log(.err, "Failed to parse repository list: {s}", .{list.stdout});
                         return err;
                     };
                     defer parsed.deinit();
 
                     if (parsed.value.len == 0) {
-                        try log(.err, "No repositories found for {s}\n", .{name});
+                        try log(.err, "No repositories found for {s}", .{name});
                         return;
                     }
                     // Handles if the user provides no name, which fallbacks to his own repositories
@@ -117,10 +100,13 @@ pub fn main() !void {
                     var outputFolder = try std.fs.cwd().openDir(folderPath, .{});
                     defer outputFolder.close();
 
+                    var failed: usize = 0;
+
                     // Create a process for each repository
                     for (parsed.value) |repo| {
                         if (!try isEmptyFolder(outputFolder, repo.name)) {
-                            try log(.warning, "Folder {s} is not empty, cancelling clone for this repo.\n", .{folderPath});
+                            try log(.warning, "Folder {s} is not empty, cancelling clone for this repo.", .{folderPath});
+                            failed += 1;
                             continue;
                         }
                         const process = try spawn(allocator, &[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }, folderPath);
@@ -139,7 +125,15 @@ pub fn main() !void {
                             1 => try log(.err, "Error: {s}", .{result.stderr}),
                             else => try log(.err, "Unexpected error: {d} (when cloning {s})\n{s}", .{ result.term.Exited, parsed.value[i].nameWithOwner, result.stderr }),
                         }
+                        if (result.term.Exited != 0) {
+                            failed += 1;
+                        }
                     }
+
+                    if (failed != 0)
+                        try log(.info, "Cloned {d}/{d} repositories", .{ parsed.value.len - failed, parsed.value.len })
+                    else
+                        try log(.info, "Cloned all {d} repositories", .{parsed.value.len});
 
                     // Generate workspace file
                     var foldersList = try std.ArrayList(WorkspaceFolder).initCapacity(allocator, parsed.value.len);
@@ -155,10 +149,10 @@ pub fn main() !void {
                 1 => try log(.err, "{s}\n", .{list.stderr}),
                 2 => try log(.err, "Command gets canceled, you really want to make us sweat, lol.\nWell, if you like this project, star it at https://github.com/gaskam/workspace.\n", .{}),
                 3 => try log(.err, "Oopsie! This error was never supposed to happen!", .{}),
-                4 => try log(.err, "Please login to gh using {s}gh auth login{s}\n", .{ Colors.brightBlack.code(), Colors.reset.code() }),
+                4 => try log(.err, "Please login to gh using {s}gh auth login{s}", .{ Colors.brightBlack.code(), Colors.reset.code() }),
                 else => {
-                    try log(.err, "Unexpected error: {d} (when fetching user info)\n", .{list.term.Exited});
-                    try log(.err, "{s}\n", .{list.stderr});
+                    try log(.err, "Unexpected error: {d} (when fetching user info)", .{list.term.Exited});
+                    try log(.err, "{s}", .{list.stderr});
                 },
             }
         },
@@ -187,7 +181,7 @@ pub fn main() !void {
             try log(.info, "We love {s}Zig{s} too!\n\nLet's support them on {s}https://github.com/ziglang/zig{s}", .{ Colors.yellow.code(), Colors.reset.code(), Colors.green.code(), Colors.reset.code() });
         },
         // implicitly also catches `help` command
-        else => {
+        .help => {
             const helpMessage =
                 "{s}Workspace{s} is a powerful application designed to install and manage all your repositories in your chosen destination.\n\n" ++
                 "Usage: workspace <command> {s}<requirement>{s} {s}[...options]{s}\n\n" ++
@@ -234,25 +228,9 @@ pub fn main() !void {
     }
 }
 
-fn run(
-    allocator: std.mem.Allocator,
-    args: [][]const u8,
-    subpath: ?[]const u8,
-) !std.process.Child.RunResult {
-    const cp = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = args,
-        .cwd = subpath,
-    }) catch |err| {
-        if (err == error.FileNotFound and std.mem.eql(u8, args[0], "gh")) {
-            return CommandError.GithubCliNotFound;
-        }
-        return err;
-    };
-    return cp;
-}
-
+/// Generates a VSCode workspace file with the given folders and default settings
 fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, path: []const u8) !void {
+    // Define default VSCode settings
     const Settings = struct {
         files_autoSave: []const u8 = "afterDelay",
         editor_formatOnSave: bool = true,
@@ -282,6 +260,8 @@ fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, p
     try file.writeAll(workspaceJson.items);
 }
 
+/// Checks if a folder exists and is empty
+/// Returns true if folder doesn't exist or is empty
 fn isEmptyFolder(
     folder: std.fs.Dir,
     repoName: []const u8,
@@ -320,9 +300,13 @@ fn isEmptyFolder(
     return try iterator.next() == null;
 }
 
+/// Checks GitHub for new versions of workspace
+/// Returns true if an update is available
 fn checkForUpdates(allocator: std.mem.Allocator) !bool {
-    const content = fetchUrlContent(allocator, "https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/INSTALL") catch |err| {
-        try log(.err, "Failed to check for updates: {!}", .{err});
+    const content = fetchUrlContent(allocator, "https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/INSTALL") catch {
+        const stdout = std.io.getStdOut().writer();
+        try stdout.print("\n", .{});
+        try log(.warning, "Failed to check for updates...", .{});
         return false;
     };
     defer allocator.free(content);
@@ -332,11 +316,13 @@ fn checkForUpdates(allocator: std.mem.Allocator) !bool {
     return !std.mem.eql(u8, latest_version, VERSION);
 }
 
+/// Fetches content from a URL using HTTP GET
+/// Returns the content as a string, caller owns the memory
 fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u8 {
     var client = std.http.Client{ .allocator = allocator };
     defer client.deinit();
 
-    var buffer: [1024]u8 = undefined;
+    var buffer: [4096]u8 = undefined;
     var req = try client.open(.GET, try std.Uri.parse(url), .{ .server_header_buffer = &buffer });
     defer req.deinit();
 
@@ -347,10 +333,12 @@ fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u8 {
         return error.HttpError;
     }
 
-    const body = try req.reader().readAllAlloc(allocator, 1024 * 1024);
+    const body = try req.reader().readAllAlloc(allocator, MAX_HTTP_BUFFER);
     return body;
 }
 
+/// Prompts the user for input with a default fallback
+/// Returns the user input or an error
 fn promptName(
     allocator: std.mem.Allocator,
 ) ![]const u8 {
@@ -368,6 +356,7 @@ fn promptName(
     return try input.toOwnedSlice();
 }
 
+/// Creates a directory and handles various filesystem errors
 fn createFolder(
     path: []const u8,
 ) !void {
@@ -400,46 +389,21 @@ fn createFolder(
     };
 }
 
-const LogLevel = enum {
-    help,
-    info,
-    cloned,
-    warning,
-    err,
-};
-
-fn log(
-    level: LogLevel,
-    comptime message: []const u8,
-    args: anytype,
-) !void {
-    const stdout = std.io.getStdOut().writer();
-    switch (level) {
-        .help => _ = try stdout.print("{s}[HELP]{s} ", .{ Colors.green.code(), Colors.reset.code() }),
-        .info => _ = try stdout.print("{s}[INFO]{s} ", .{ Colors.green.code(), Colors.reset.code() }),
-        .cloned => _ = try stdout.print("{s}[CLONED]{s} ", .{ Colors.green.code(), Colors.reset.code() }),
-        .warning => _ = try stdout.print("{s}[WARNING]{s} ", .{ Colors.yellow.code(), Colors.reset.code() }),
-        .err => _ = try stdout.print("{s}[ERROR]{s} ", .{ Colors.red.code(), Colors.reset.code() }),
-    }
-    try stdout.print(message, args);
-    try stdout.writeByte('\n');
-}
-
+/// Custom error type for update operations
 const UpdateError = error{
     CreateProcessFailed,
     SpawnUpdateFailed,
 };
 
-fn spawnUpdater(allocator: std.mem.Allocator) !void {
-    var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const self_path = try std.fs.selfExePath(&buffer);
-    const self_dir = std.fs.path.dirname(self_path) orelse ".";
-
+/// Spawns the appropriate update script based on the OS
+/// Exits the current process after spawning the updater
+fn spawnUpdater(allocator: std.mem.Allocator) UpdateError!void {
     const args = if (isWindows)
         &[_][]const u8{
             "powershell.exe",
             "-NoProfile",
-            "-ExecutionPolicy", "Bypass",
+            "-ExecutionPolicy",
+            "Bypass",
             "-Command",
             "(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1') | Invoke-Expression",
         }
@@ -448,13 +412,12 @@ fn spawnUpdater(allocator: std.mem.Allocator) !void {
 
     var child = std.process.Child.init(args, allocator);
     child.stdin_behavior = .Ignore;
-    child.stdout_behavior = .Inherit;
-    child.stderr_behavior = .Inherit;
-    child.cwd = self_dir;
+    child.stdout_behavior = .Ignore;
+    child.stderr_behavior = .Ignore;
 
     child.spawn() catch |err| {
-        try log(.err, "Failed to spawn update process: {s}", .{@errorName(err)});
-        return UpdateError.SpawnUpdateFailed;
+        log(.err, "Failed to spawn update process: {s}", .{@errorName(err)}) catch unreachable;
+        return error.SpawnUpdateFailed;
     };
     std.process.exit(0);
 }

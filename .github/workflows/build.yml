@@ -110,3 +110,30 @@ jobs:
           echo "Release assets uploaded to ${{ github.repository }}/releases/tag/$TAG_NAME"
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Add release installation instructions
+        run: |
+          EXISTING_NOTES=$(gh release view $TAG_NAME --json body -q .body)
+          INSTALL_NOTES="## New version ! ${TAG_NAME}
+
+          You can install the latest version with the commands below:
+
+          For **Linux**:
+          \`\`\`bash
+          curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.sh | bash
+          \`\`\`
+
+          For **Windows PowerShell**:
+          \`\`\`bash
+          irm raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1 | iex
+          \`\`\`
+
+          Or juste update it!
+          \`\`\`bash
+          workspace update
+          \`\`\`
+
+          $EXISTING_NOTES"
+          gh release edit $TAG_NAME --notes "$INSTALL_NOTES"
+        env:
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}

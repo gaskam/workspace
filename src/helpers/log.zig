@@ -10,7 +10,7 @@ pub const Colors = enum {
     magenta,
     cyan,
     white,
-    brightBlack,
+    grey,
 
     const colorCodes = [@typeInfo(Colors).Enum.fields.len][]const u8{
         "\x1b[0m", // reset
@@ -22,7 +22,7 @@ pub const Colors = enum {
         "\x1b[35m", // magenta
         "\x1b[36m", // cyan
         "\x1b[37m", // white
-        "\x1b[90m", // brightBlack
+        "\x1b[38;5;245m", //grey
     };
 
     pub inline fn code(self: Colors) []const u8 {
@@ -36,6 +36,7 @@ const LogLevel = enum {
     cloned,
     warning,
     err,
+    default,
 };
 
 pub inline fn log(
@@ -50,6 +51,7 @@ pub inline fn log(
         .cloned => _ = try stdout.print("{s}[CLONED]{s} ", .{ Colors.green.code(), Colors.reset.code() }),
         .warning => _ = try stdout.print("{s}[WARNING]{s} ", .{ Colors.yellow.code(), Colors.reset.code() }),
         .err => _ = try stdout.print("{s}[ERROR]{s} ", .{ Colors.red.code(), Colors.reset.code() }),
+        .default => {},
     }
     try stdout.print(message, args);
     try stdout.writeByte('\n');

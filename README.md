@@ -43,8 +43,15 @@ Workspace can be called with the following arguments:
 
 For **cloning** repositories from a GitHub organization or user:
 ```bash
-workspace clone <organization/user> [destination]
+workspace clone <organization/user> [destination] [--flags]
 ```
+
+Flags:
+| Flag | Description |
+|------|-------------|
+| `--limit`, `-l` | Limit the number of repositories to clone |
+| `--processes`, `-p` | Limit the number of concurrent processes -> Default is the number of logical CPUs - 1 |
+| `--prune` | Delete repositories that do not belong to current user |
 
 For showing **help**:
 ```bash
@@ -61,13 +68,11 @@ For **updating** Workspace:
 workspace update
 ```
 
-### Limitations
-Consider some limitations:
-
-"If a repository owner exceeds 100,000 repositories, some UI experiences and API functionality may be degraded." - [GitHub Repo](https://docs.github.com/en/repositories/creating-and-managing-repositories/repository-limits) 
-
-In our case, even though GitHub allows us to retrieve all repositories, we may not be able to clone them all, due to the limitations of your system. In fact, we use one process per repository, so if you have a lot of repositories, it's impossible to clone them all at once. Just imagine you have 100,000 repositories, and you want to clone them all at once (over 100,000 processes will be created, and your system will be overloaded)!
-In future updates, we'll be able to add functionality for cloning repositories to limit the number of processes created with a flag on the command like `--limit` or `--max-processes`.
+### Example
+To clone the first 10 repositories from the `ziglang` organization to the `./workspace` directory with a limit of 10 repositories and 5 concurrent processes:
+```bash
+workspace clone ziglang ./workspace --limit 10 --processes 5 --prune
+```
 
 ## Development
 For developers who want to contribute or build Workspace from source:

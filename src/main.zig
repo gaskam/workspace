@@ -3,6 +3,7 @@
 //! and automatically creates a VSCode workspace configuration.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const processHelper = @import("helpers/process.zig");
 const logHelper = @import("helpers/log.zig");
 
@@ -66,11 +67,17 @@ pub fn main() !void {
     const command = std.meta.stringToEnum(Commands, if (args.len >= 2) args[1] else "help") orelse Commands.help;
     switch (command) {
         .clone => {
-            // Get repository owner name (user/org) from args or prompt
-            const name = if (args.len >= 3) try allocator.dupe(u8, args[2]) else try promptName(allocator);
-            defer allocator.free(name);
+            if (args.len < 3) {
+                try log(.err, "Missing required argument: <organization/user>", .{});
+                return;
+            }
 
-            const list = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "list", name, "--json", "nameWithOwner,name,owner" }), null);
+            // Get repository owner name (user/org) from args or prompt
+            const name = args[2];
+
+            var config = try parseArgs(args[3..]);
+
+            const list = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "list", name, "--json", "nameWithOwner,name,owner", "--limit", config.limit orelse "100000" }), null);
             defer {
                 allocator.free(list.stdout);
                 allocator.free(list.stderr);
@@ -90,50 +97,99 @@ pub fn main() !void {
                         return;
                     }
                     // Handles if the user provides no name, which fallbacks to his own repositories
-                    const folderPath = if (args.len <= 3) parsed.value[0].owner.login else args[3];
+                    if (config.targetFolder == null)
+                        config.targetFolder = parsed.value[0].owner.login;
 
-                    try createFolder(folderPath);
+                    const created = try createFolder(config.targetFolder.?);
 
-                    var processes = std.ArrayList(std.process.Child).init(allocator);
-                    defer processes.deinit();
+                    // Prune repositories that no longer exist in the user's/organization's account
+                    if (!created and config.prune) {
+                        try prune(parsed.value, config.targetFolder.?);
+                    }
 
-                    var outputFolder = try std.fs.cwd().openDir(folderPath, .{});
+                    var schedule = std.ArrayList(RepoInfo).init(allocator);
+                    defer schedule.deinit();
+
+                    var outputFolder = try std.fs.cwd().openDir(config.targetFolder.?, .{});
                     defer outputFolder.close();
 
                     var failed: usize = 0;
+                    var total: usize = 0;
 
                     // Create a process for each repository
                     for (parsed.value) |repo| {
                         if (!try isEmptyFolder(outputFolder, repo.name)) {
-                            try log(.warning, "Folder {s} is not empty, cancelling clone for this repo.", .{folderPath});
+                            try log(.warning, "Folder {s} is not empty, cancelling clone for this repo.", .{repo.name});
                             failed += 1;
                             continue;
                         }
-                        const process = try spawn(allocator, &[_][]const u8{ "gh", "repo", "clone", repo.nameWithOwner }, folderPath);
+                        total += 1;
+                        try schedule.append(repo);
+                    }
+
+                    const Process = struct {
+                        child: std.process.Child,
+                        repo: RepoInfo,
+                    };
+
+                    var processes = std.ArrayList(Process).init(allocator);
+                    defer processes.deinit();
+
+                    for (@min(config.processes, schedule.items.len)) |_| {
+                        const toSpawn = schedule.pop();
+                        const process = Process{
+                            .child = try spawn(allocator, @constCast(&[_][]const u8{
+                                "gh",
+                                "repo",
+                                "clone",
+                                toSpawn.nameWithOwner,
+                            }), config.targetFolder.?),
+                            .repo = toSpawn,
+                        };
                         try processes.append(process);
                     }
 
                     // Wait for all processes to complete
-                    for (processes.items, 0..) |process, i| {
-                        const result = try wait(allocator, @constCast(&process));
+                    for (0..total) |i| {
+                        const process = processes.items[i];
+                        const result = try wait(allocator, @constCast(&process.child));
                         defer {
                             allocator.free(result.stdout);
                             allocator.free(result.stderr);
                         }
+
                         switch (result.term.Exited) {
-                            0 => try log(.cloned, "{s}{s}{s}", .{ Colors.brightBlue.code(), parsed.value[i].nameWithOwner, Colors.reset.code() }),
+                            0 => try log(.cloned, "{s}{s}{s}", .{ Colors.brightBlue.code(), process.repo.nameWithOwner, Colors.reset.code() }),
                             1 => try log(.err, "Error: {s}", .{result.stderr}),
-                            else => try log(.err, "Unexpected error: {d} (when cloning {s})\n{s}", .{ result.term.Exited, parsed.value[i].nameWithOwner, result.stderr }),
+                            else => try log(.err, "Unexpected error: {d} (when cloning {s})\n{s}", .{ result.term.Exited, process.repo.nameWithOwner, result.stderr }),
                         }
+
                         if (result.term.Exited != 0) {
                             failed += 1;
                         }
+
+                        if (schedule.items.len > 0) {
+                            const toSpawn = schedule.pop();
+                            const newProcess = Process{
+                                .child = try spawn(allocator, @constCast(&[_][]const u8{
+                                    "gh",
+                                    "repo",
+                                    "clone",
+                                    toSpawn.nameWithOwner,
+                                }), config.targetFolder.?),
+                                .repo = toSpawn,
+                            };
+                            try processes.append(newProcess);
+                        }
                     }
 
-                    if (failed != 0)
-                        try log(.info, "Cloned {d}/{d} repositories", .{ parsed.value.len - failed, parsed.value.len })
-                    else
+                    if (failed != 0) {
+                        try log(.default, "", .{});
+                        try log(.info, "Cloned {d}/{d} repositories", .{ parsed.value.len - failed, parsed.value.len });
+                    } else {
+                        try log(.default, "", .{});
                         try log(.info, "Cloned all {d} repositories", .{parsed.value.len});
+                    }
 
                     // Generate workspace file
                     var foldersList = try std.ArrayList(WorkspaceFolder).initCapacity(allocator, parsed.value.len);
@@ -143,13 +199,13 @@ pub fn main() !void {
                     }
                     const folders = foldersList.items;
 
-                    try generateWorkspace(allocator, folders, folderPath);
+                    try generateWorkspace(allocator, folders, config.targetFolder.?);
                 },
                 // Probably just an invalid user/organization name
                 1 => try log(.err, "{s}\n", .{list.stderr}),
                 2 => try log(.err, "Command gets canceled, you really want to make us sweat, lol.\nWell, if you like this project, star it at https://github.com/gaskam/workspace.\n", .{}),
                 3 => try log(.err, "Oopsie! This error was never supposed to happen!", .{}),
-                4 => try log(.err, "Please login to gh using {s}gh auth login{s}", .{ Colors.brightBlack.code(), Colors.reset.code() }),
+                4 => try log(.err, "Please login to gh using {s}gh auth login{s}", .{ Colors.grey.code(), Colors.reset.code() }),
                 else => {
                     try log(.err, "Unexpected error: {d} (when fetching user info)", .{list.term.Exited});
                     try log(.err, "{s}", .{list.stderr});
@@ -160,8 +216,7 @@ pub fn main() !void {
             try log(.info, "{s}", .{VERSION});
             const latestVersion = try checkForUpdates(allocator);
             if (latestVersion) {
-                const stdout = std.io.getStdOut().writer();
-                try stdout.print("\n", .{});
+                try log(.default, "", .{});
                 try log(.warning, "A new version is available! Please run `workspace update` to update to the latest version.", .{});
             }
         },
@@ -180,52 +235,95 @@ pub fn main() !void {
         .ziglove => {
             try log(.info, "We love {s}Zig{s} too!\n\nLet's support them on {s}https://github.com/ziglang/zig{s}", .{ Colors.yellow.code(), Colors.reset.code(), Colors.green.code(), Colors.reset.code() });
         },
-        // implicitly also catches `help` command
         .help => {
             const helpMessage =
-                "{s}Workspace{s} is a powerful application designed to install and manage all your repositories in your chosen destination.\n\n" ++
-                "Usage: workspace <command> {s}<requirement>{s} {s}[...options]{s}\n\n" ++
+                "{0s}Workspace{1s} is a powerful application designed to install and manage all your repositories.\n\n" ++
+                "Usage: workspace <command> {2s}<requirement>{1s} [...options] {3s}[--flags]{1s}\n\n" ++
                 "Commands:\n" ++
-                "  {s}clone{s} {s}<organization/user>{s} {s}[destination]{s}  Clone all repositories from an organization/user\n\n" ++
-                "  {s}version{s}                                  Display version information\n" ++
-                "  {s}update{s}, {s}upgrade{s}                          Update workspace to the latest version\n\n" ++
-                "  {s}help{s}                                     Display help information\n\n" ++
-                "{s}e.g. => $ workspace clone ziglang ./workspace{s} \n\n" ++
-                "Contribute about Workspace:                {s}https://github.com/gaskam/workspace{s}";
+                "  {0s}clone{1s} {2s}<organization/user>{1s} [destination]  Clone all repositories from an organization/user\n\n" ++
+                "  \xC3\xC4 {3s}[--limit]{1s} {3s}<number>{1s}                    Limit the number of repositories to clone\n" ++
+                "  \xC3\xC4 {3s}[--processes]{1s} {3s}<number>{1s}                Limit the number of concurrent processes\n" ++
+                "  \xB3                                        -> Default is the number of logical CPUs - 1\n" ++
+                "  \xC0\xC4 {3s}[--prune]{1s}                             Delete repositories that do not belong to current user\n\n" ++
+                "  {6s}-> Note that if you provide --limit and --prune flags, we'll delete\n" ++
+                "     the repositories that no longer exist once the limit is reached.{1s}\n\n" ++
+                "  {4s}version{1s}                                  Display version information\n" ++
+                "  {4s}update{1s}, {4s}upgrade{1s}                          Update workspace to the latest version\n\n" ++
+                "  {5s}help{1s}                                     Display help information\n\n" ++
+                "{3s}e.g. => $ workspace clone ziglang ./workspace --limit 10 --processes 5 --prune{1s}\n\n" ++
+                "Contribute about Workspace:                {0s}https://github.com/gaskam/workspace{1s}";
             try log(.help, helpMessage, .{
                 Colors.green.code(),
                 Colors.reset.code(),
                 Colors.cyan.code(),
-                Colors.reset.code(),
-                Colors.brightBlack.code(),
-                Colors.reset.code(),
-                Colors.green.code(),
-                Colors.reset.code(),
-                Colors.cyan.code(),
-                Colors.reset.code(),
-                Colors.brightBlack.code(),
-                Colors.reset.code(),
+                Colors.grey.code(),
                 Colors.magenta.code(),
-                Colors.reset.code(),
-                Colors.magenta.code(),
-                Colors.reset.code(),
-                Colors.magenta.code(),
-                Colors.reset.code(),
                 Colors.yellow.code(),
-                Colors.reset.code(),
-                Colors.brightBlack.code(),
-                Colors.reset.code(),
-                Colors.green.code(),
-                Colors.reset.code(),
+                Colors.red.code(),
             });
 
             if (args.len >= 2 and !std.mem.eql(u8, args[1], "help")) {
-                const stdout = std.io.getStdOut().writer();
-                try stdout.print("\n", .{});
+                try log(.default, "", .{});
                 try log(.err, "Unknown command: {s}", .{args[1]});
             }
         },
     }
+}
+
+const CloneConfig = struct {
+    targetFolder: ?[]const u8,
+    limit: ?[]const u8 = null,
+    processes: usize,
+    prune: bool = false,
+};
+
+fn parseArgs(
+    args: []const []const u8,
+) !CloneConfig {
+    var usedArgs: usize = 0;
+    var config = CloneConfig{ .targetFolder = null, .processes = try std.Thread.getCpuCount() - 1 };
+    config.prune = true;
+    if (args.len == 0) {
+        return config;
+    }
+    if (!std.mem.startsWith(u8, args[0], "-")) {
+        config.targetFolder = args[0];
+        usedArgs += 1;
+    }
+
+    const Args = enum { @"--limit", @"-l", @"--processes", @"-p", @"--prune", default };
+
+    while (usedArgs < args.len) {
+        const command = std.meta.stringToEnum(Args, args[usedArgs]) orelse Args.default;
+        switch (command) {
+            .@"--limit", .@"-l" => {
+                if (usedArgs + 1 >= args.len) {
+                    std.debug.print("missing argument for --limit\n", .{});
+                    return error.MissingArgument;
+                }
+                config.limit = args[usedArgs + 1];
+                usedArgs += 2;
+            },
+            .@"--processes", .@"-p" => {
+                if (usedArgs + 1 >= args.len) {
+                    std.debug.print("missing argument for --processes\n", .{});
+                    return error.MissingArgument;
+                }
+                const processes = try std.fmt.parseInt(usize, args[usedArgs + 1], 10);
+                config.processes = processes;
+                usedArgs += 2;
+            },
+            .@"--prune" => {
+                config.prune = true;
+                usedArgs += 1;
+            },
+            .default => {
+                std.debug.print("unknown argument: {s}\n", .{args[usedArgs]});
+                return error.UnknownArgument;
+            },
+        }
+    }
+    return config;
 }
 
 /// Generates a VSCode workspace file with the given folders and default settings
@@ -266,46 +364,37 @@ fn isEmptyFolder(
     folder: std.fs.Dir,
     repoName: []const u8,
 ) !bool {
-    var dir = folder.openDir(repoName, .{ .access_sub_paths = false, .iterate = true }) catch |err| {
+    folder.deleteDir(repoName) catch |err| {
         switch (err) {
+            error.DirNotEmpty => return false,
             error.FileNotFound => return true,
-            error.NotDir => try log(.err, "Path is not a directory: {s}\n", .{repoName}),
             error.AccessDenied => try log(.err, "Access denied when opening directory: {s}\n", .{repoName}),
+            error.FileBusy => try log(.err, "File is busy: {s}\n", .{repoName}),
+            error.FileSystem => try log(.err, "Filesystem error when opening directory: {s}\n", .{repoName}),
             error.SymLinkLoop => try log(.err, "Path is a symlink loop (path: {s})", .{repoName}),
-            error.ProcessFdQuotaExceeded => {
-                try log(.err, "Process: too much open file handles (cancelling clone failcheck)", .{});
-                return true;
-            },
             error.NameTooLong => {
-                try log(.err, "Path name is too long for fylesystem (cancelling clone failcheck)", .{});
+                try log(.err, "Folder name is too long for fylesystem (cancelling clone failcheck)", .{});
                 return true;
             },
-            error.SystemFdQuotaExceeded => {
-                try log(.err, "System: too much open file handles... Aborting", .{});
-                return err;
-            },
-            error.NoDevice => try log(.err, "The directory doesn't seem to be on a valid device. This shouldn't happen.", .{}),
+            error.NotDir => try log(.err, "Path is not a directory (path: {s})", .{repoName}),
             error.SystemResources => try log(.err, "Too much system ressource usage (cancelling clone failcheck)", .{}),
+            error.ReadOnlyFileSystem => try log(.err, "Filesystem is read-only (cancelling clone failcheck)", .{}),
             error.InvalidUtf8 => try log(.err, "Invalid UTF-8 in repository name", .{}),
             error.InvalidWtf8 => try log(.err, "Invalid WTF-8 in repository name", .{}),
             error.BadPathName => try log(.err, "Invalid pathname (in repository name)", .{}),
-            error.DeviceBusy => try log(.err, "Device too busy", .{}),
             error.NetworkNotFound => try log(.err, "Network device was not found :(", .{}),
             error.Unexpected => try log(.err, "Unexpected posix error (please report to https://github.com/gaskam/workspace/issues/): {!}", .{err}),
         }
         return false;
     };
-    defer dir.close();
-    var iterator = dir.iterate();
-    return try iterator.next() == null;
+    return true;
 }
 
 /// Checks GitHub for new versions of workspace
 /// Returns true if an update is available
 fn checkForUpdates(allocator: std.mem.Allocator) !bool {
     const content = fetchUrlContent(allocator, "https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/INSTALL") catch {
-        const stdout = std.io.getStdOut().writer();
-        try stdout.print("\n", .{});
+        try log(.default, "", .{});
         try log(.warning, "Failed to check for updates...", .{});
         return false;
     };
@@ -337,36 +426,20 @@ fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u8 {
     return body;
 }
 
-/// Prompts the user for input with a default fallback
-/// Returns the user input or an error
-fn promptName(
-    allocator: std.mem.Allocator,
-) ![]const u8 {
-    try log(.info, "Please provide a user/organization name (defaults to yourself): ", .{});
-    var input = std.ArrayList(u8).init(allocator);
-    std.io.getStdIn().reader().streamUntilDelimiter(input.writer(), '\n', MAX_INPUT_LENGTH) catch |err| {
-        switch (err) {
-            error.StreamTooLong => try log(.err, "Input name too long (max {d} characters)", .{MAX_INPUT_LENGTH}),
-            error.EndOfStream => try log(.err, "No input provided", .{}),
-            else => try log(.err, "Unable to get input: {!}", .{err}),
-        }
-        return err;
-    };
-    if (isWindows) _ = input.pop();
-    return try input.toOwnedSlice();
-}
-
 /// Creates a directory and handles various filesystem errors
 fn createFolder(
     path: []const u8,
-) !void {
+) !bool {
     std.fs.cwd().makeDir(path) catch |err| {
         switch (err) {
             // In WASI, this error may occur when the file descriptor does
             // not hold the required rights to create a new directory relative to it.
             error.AccessDenied => try log(.err, "Access denied when creating directory: {s}\n", .{path}),
             error.DiskQuota => try log(.err, "Disk quota exceeded when creating {s}\n", .{path}),
-            error.PathAlreadyExists => try log(.warning, "Directory already exists (path: {s})\n", .{path}),
+            error.PathAlreadyExists => {
+                try log(.warning, "Directory already exists (path: {s})\n", .{path});
+                return false;
+            },
             error.SymLinkLoop => try log(.err, "Symbolic link loop detected while creating {s}\n", .{path}),
             error.LinkQuotaExceeded => try log(.err, "Link quota exceeded for {s}\n", .{path}),
             error.NameTooLong => try log(.err, "Path name too long: {s}\n", .{path}),
@@ -386,7 +459,9 @@ fn createFolder(
             error.NetworkNotFound => try log(.err, "Network path not found: {s}\n", .{path}),
             error.Unexpected => try log(.err, "Unexpected error in zig (please report to https://github.com/gaskam/workspace/issues/): {!}\n", .{err}),
         }
+        return err;
     };
+    return true;
 }
 
 /// Custom error type for update operations
@@ -420,4 +495,115 @@ fn spawnUpdater(allocator: std.mem.Allocator) UpdateError!void {
         return error.SpawnUpdateFailed;
     };
     std.process.exit(0);
+}
+
+/// Helper function to force remove a directory on Windows using PowerShell
+fn forceRemoveDir(allocator: std.mem.Allocator, path: []const u8) !void {
+    const result = try run(allocator, @constCast(&[_][]const u8{
+        "powershell.exe",
+        // "-NoProfile",
+        // "-ExecutionPolicy",
+        // "Bypass",
+        // "-Command",
+        "Remove-Item",
+        "-Path",
+        path,
+        "-Recurse",
+        "-Force",
+    }), null);
+    defer {
+        allocator.free(result.stdout);
+        allocator.free(result.stderr);
+    }
+
+    if (result.term.Exited != 0) {
+        try log(.err, "Failed to remove directory {s}: {s}", .{path, result.stderr});
+        return error.RemoveFailed;
+    }
+}
+
+/// Prunes repositories that no longer exist in the user's/organization's account
+fn prune(list: []RepoInfo, targetFolder: []const u8) !void {
+    const hasher = std.hash.Murmur2_64;
+
+    var buffer: [100_000]u64 = undefined;
+    for (0..list.len) |i| {
+        const repo = list[i];
+        const name = repo.name;
+        buffer[i] = hasher.hash(name);
+    }
+    const repoNames = buffer[0..list.len];
+    std.mem.sort(u64, repoNames, {}, std.sort.asc(u64));
+
+    // First, collect directories to prune
+    var toPrune = std.ArrayList([]const u8).init(std.heap.page_allocator);
+    defer toPrune.deinit();
+
+    {
+        var outputFolder = try std.fs.cwd().openDir(targetFolder, .{ .iterate = true });
+        defer outputFolder.close();
+        var dir = outputFolder.iterate();
+
+        while (try dir.next()) |entry| {
+            const dirName = entry.name;
+            if (std.mem.eql(u8, entry.name, "workspace.code-workspace")) {
+                continue;
+            }
+            const dirHash = hasher.hash(dirName);
+
+            const eqlFunc = struct {
+                fn inner(_: void, a: u64, b: u64) std.math.Order {
+                    if (a == b) return .eq else if (a < b) return .lt else return .gt;
+                }
+            }.inner;
+
+            if (std.sort.binarySearch(u64, dirHash, repoNames, {}, eqlFunc) == null) {
+                try toPrune.append(try std.heap.page_allocator.dupe(u8, dirName));
+            }
+        }
+    }
+
+    // Now delete the collected directories
+    var outputFolder = try std.fs.cwd().openDir(targetFolder, .{});
+    defer outputFolder.close();
+
+    for (toPrune.items) |dirName| {
+        defer std.heap.page_allocator.free(dirName);
+        if (isWindows) {
+            const dirPath = try std.fs.path.join(std.heap.page_allocator, &.{targetFolder, dirName});
+            forceRemoveDir(std.heap.page_allocator, dirPath) catch |force_err| {
+                try log(.err, "Failed to force remove directory {s}: {!}", .{ dirName, force_err });
+                continue;
+            };
+        } else {
+            outputFolder.deleteTree(dirName) catch |err| {
+                switch (err) {
+                    error.FileTooBig => try log(.err, "File too big to delete: {s}", .{dirName}),
+                    error.DeviceBusy => try log(.err, "Device is busy", .{}),
+                    error.AccessDenied => {
+                        try log(.err, "Access denied when deleting {s}", .{dirName});
+                        try log(.info, "Please run the command as an administrator", .{});
+                        continue;
+                    },
+                    error.SystemResources => try log(.err, "Insufficient system resources", .{}),
+                    error.Unexpected => try log(.err, "Unexpected error: {!}", .{err}),
+                    error.NameTooLong => try log(.err, "Path name too long: {s}", .{dirName}),
+                    error.NoDevice => try log(.err, "No such device for path: {s}", .{dirName}),
+                    error.InvalidWtf8 => try log(.err, "Invalid WTF-8 in path: {s}", .{dirName}),
+                    error.FileSystem => try log(.err, "Filesystem error when deleting {s}", .{dirName}),
+                    error.NotDir => try log(.err, "Not a directory: {s}", .{dirName}),
+                    error.FileBusy => try log(.err, "File is busy: {s}", .{dirName}),
+                    error.ProcessFdQuotaExceeded => try log(.err, "Process file descriptor quota exceeded", .{}),
+                    error.SystemFdQuotaExceeded => try log(.err, "System file descriptor quota exceeded", .{}),
+                    error.SymLinkLoop => try log(.err, "Symbolic link loop detected in {s}", .{dirName}),
+                    error.BadPathName => try log(.err, "Invalid pathname: {s}", .{dirName}),
+                    error.InvalidUtf8 => try log(.err, "Invalid UTF-8 in path: {s}", .{dirName}),
+                    error.ReadOnlyFileSystem => try log(.err, "Cannot delete on read-only filesystem", .{}),
+                    error.NetworkNotFound => try log(.err, "Network path not found: {s}", .{dirName}),
+                }
+                continue;
+            };
+        }
+        try log(.info, "Removed {s} as it does no longer belong to the user/organization", .{dirName});
+    }
 }

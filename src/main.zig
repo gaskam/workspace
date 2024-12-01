@@ -205,7 +205,7 @@ pub fn main() !void {
                 var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
                 var selfExeDir = try std.fs.openDirAbsolute(try std.fs.selfExeDirPath(&buf), .{});
                 defer selfExeDir.close();
-                const path = try selfExeDir.realpathAlloc(allocator, "../..");
+                const path = try selfExeDir.realpathAlloc(allocator, "../");
                 defer allocator.free(path);
                 if (!std.mem.endsWith(u8, path, ".workspace")) {
                     try log(.default, "\n", .{});

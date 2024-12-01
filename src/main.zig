@@ -228,7 +228,7 @@ pub fn main() !void {
                         "Bypass",
                         "-Command",
                     });
-                    const ps_cmd = try std.fmt.allocPrint(allocator, "Start-Sleep -Seconds 2; Remove-Item -Path {s} -Recurse -Force", .{path});
+                    const ps_cmd = try std.fmt.allocPrint(allocator, "Start-Sleep -Seconds 2; Remove-Item -Path '{s}' -Recurse -Force", .{path});
                     defer allocator.free(ps_cmd);
                     try cmd_list.append(ps_cmd);
                 } else {

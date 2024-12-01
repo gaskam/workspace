@@ -401,9 +401,9 @@ fn isEmptyFolder(
         switch (err) {
             error.DirNotEmpty => return false,
             error.FileNotFound => return true,
-            error.AccessDenied => try log(.err, "Access denied when opening directory: {s}\n", .{repoName}),
-            error.FileBusy => try log(.err, "File is busy: {s}\n", .{repoName}),
-            error.FileSystem => try log(.err, "Filesystem error when opening directory: {s}\n", .{repoName}),
+            error.AccessDenied => try log(.err, "Access denied when opening directory: {s}", .{repoName}),
+            error.FileBusy => try log(.err, "File is busy: {s}", .{repoName}),
+            error.FileSystem => try log(.err, "Filesystem error when opening directory: {s}", .{repoName}),
             error.SymLinkLoop => try log(.err, "Path is a symlink loop (path: {s})", .{repoName}),
             error.NameTooLong => {
                 try log(.err, "Folder name is too long for fylesystem (cancelling clone failcheck)", .{});

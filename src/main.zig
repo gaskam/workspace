@@ -216,17 +216,14 @@ pub fn main() !void {
                 const cmd = if (isWindows)
                     &[_][]const u8{
                         "powershell.exe",
-                        "timeout",
-                        "3",
-                        "&&",
-                        "Remove-Item",
-                        "-Path",
-                        path,
-                        "-Recurse",
-                        "-Force",
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-Command",
+                        "Start-Sleep -Seconds 2; Remove-Item -Path " ++ path ++ " -Recurse -Force",
                     }
                 else
-                    &[_][]const u8{ "sh", "-c", "sleep", "3", "&&", "rm", "-rf", path };
+                    &[_][]const u8{ "sh", "-c", "sleep", "2", "&&", "rm", "-rf", path };
 
                 var child = std.process.Child.init(cmd, allocator);
                 child.stdin_behavior = .Ignore;

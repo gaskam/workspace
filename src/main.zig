@@ -192,6 +192,14 @@ pub fn main() !void {
                         try processes.append(process);
                     }
 
+                    // Process initial repositories
+                    for (processes.items) |*proc| {
+                        if (wait(allocator, &proc.child)) |result| {
+                            defer cleanupProcessResult(allocator, result);
+                            if (!handleCloneResult(result, proc.repo)) failed += 1;
+                        } else |_| {}
+                    }
+
                     // Optimize parallel cloning
                     if (schedule.items.len > 0) {
                         const max_concurrent = @min(config.processes, schedule.items.len);
@@ -624,7 +632,7 @@ fn handleCloneResult(result: std.process.Child.RunResult, repo: RepoInfo) bool {
             return true;
         },
         1 => {
-            log(.err, "Error: {s}", .{result.stderr}) catch unreachable;
+            log(.err, "Failed to clone {s}: {s}", .{ repo.nameWithOwner, result.stderr }) catch unreachable;
             return false;
         },
         else => {
@@ -670,5 +678,5 @@ fn removeRepository(targetFolder: []const u8, dirName: []const u8) !void {
             }
         };
     }
-    log(.info, "Removed {s} as it does no longer belong to the user/organization", .{dirName}) catch unreachable;
+    log(.info, "Removed {s}{s}{s} as it does no longer belong to the user/organization", .{ Colors.brightBlue.code(), dirName, Colors.reset.code() }) catch unreachable;
 }

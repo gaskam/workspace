@@ -167,7 +167,7 @@ pub fn main() !void {
                     // Create a process for each repository
                     for (parsed.value) |repo| {
                         if (!try isEmptyFolder(outputFolder, repo.name)) {
-                            try log(.warning, "Folder {s} is not empty, cancelling clone for this repo.", .{repo.name});
+                            try log(.warning, "Folder {s}{s}{s} is not empty, cancelling clone for this repo.", .{ Colors.brightBlue.code(), repo.name, Colors.reset.code() });
                             failed += 1;
                             continue;
                         }
@@ -467,30 +467,30 @@ fn createFolder(
         switch (err) {
             // In WASI, this error may occur when the file descriptor does
             // not hold the required rights to create a new directory relative to it.
-            error.AccessDenied => try log(.err, "Access denied when creating directory: {s}\n", .{path}),
-            error.DiskQuota => try log(.err, "Disk quota exceeded when creating {s}\n", .{path}),
+            error.AccessDenied => try log(.err, "Access denied when creating directory: {s}", .{path}),
+            error.DiskQuota => try log(.err, "Disk quota exceeded when creating {s}", .{path}),
             error.PathAlreadyExists => {
-                try log(.warning, "Directory already exists (path: {s})\n", .{path});
+                try log(.warning, "Directory already exists (path: {s})", .{path});
                 return false;
             },
-            error.SymLinkLoop => try log(.err, "Symbolic link loop detected while creating {s}\n", .{path}),
-            error.LinkQuotaExceeded => try log(.err, "Link quota exceeded for {s}\n", .{path}),
-            error.NameTooLong => try log(.err, "Path name too long: {s}\n", .{path}),
-            error.FileNotFound => try log(.err, "A parent component of {s} does not exist\n", .{path}),
-            error.SystemResources => try log(.err, "Insufficient system resources to create {s}\n", .{path}),
-            error.NoSpaceLeft => try log(.err, "No space left on device to create {s}\n", .{path}),
-            error.NotDir => try log(.err, "A parent component of {s} is not a directory\n", .{path}),
-            error.ReadOnlyFileSystem => try log(.err, "Cannot create {s} on read-only file system\n", .{path}),
+            error.SymLinkLoop => try log(.err, "Symbolic link loop detected while creating {s}", .{path}),
+            error.LinkQuotaExceeded => try log(.err, "Link quota exceeded for {s}", .{path}),
+            error.NameTooLong => try log(.err, "Path name too long: {s}", .{path}),
+            error.FileNotFound => try log(.err, "A parent component of {s} does not exist", .{path}),
+            error.SystemResources => try log(.err, "Insufficient system resources to create {s}", .{path}),
+            error.NoSpaceLeft => try log(.err, "No space left on device to create {s}", .{path}),
+            error.NotDir => try log(.err, "A parent component of {s} is not a directory", .{path}),
+            error.ReadOnlyFileSystem => try log(.err, "Cannot create {s} on read-only file system", .{path}),
             // WASI-only; file paths must be valid UTF-8.
-            error.InvalidUtf8 => try log(.err, "Invalid UTF-8 in path: {s}\n", .{path}),
+            error.InvalidUtf8 => try log(.err, "Invalid UTF-8 in path: {s}", .{path}),
             // Windows-only; file paths provided by the user must be valid WTF-8.
             // https://simonsapin.github.io/wtf-8/
-            error.InvalidWtf8 => try log(.err, "Invalid WTF-8 in path: {s}\n", .{path}),
-            error.BadPathName => try log(.err, "Invalid path name: {s}\n", .{path}),
-            error.NoDevice => try log(.err, "No such device for path: {s}\n", .{path}),
+            error.InvalidWtf8 => try log(.err, "Invalid WTF-8 in path: {s}", .{path}),
+            error.BadPathName => try log(.err, "Invalid path name: {s}", .{path}),
+            error.NoDevice => try log(.err, "No such device for path: {s}", .{path}),
             // On Windows, `\\server` or `\\server\share` was not found.
-            error.NetworkNotFound => try log(.err, "Network path not found: {s}\n", .{path}),
-            error.Unexpected => try log(.err, "Unexpected error in zig (please report to https://github.com/gaskam/workspace/issues/): {!}\n", .{err}),
+            error.NetworkNotFound => try log(.err, "Network path not found: {s}", .{path}),
+            error.Unexpected => try log(.err, "Unexpected error in zig (please report to https://github.com/gaskam/workspace/issues/): {!}", .{err}),
         }
         return err;
     };

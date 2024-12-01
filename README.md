@@ -1,34 +1,44 @@
-# Workspace
+<h1 align="center">Workspace</h1>
 
-> [!NOTE] 
-> This project is still in development and may not be stable.
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/gaskam/workspace?display_name=tag&style=for-the-badge" alt="GitHub Release">
+  <img src="https://img.shields.io/github/license/gaskam/workspace?style=for-the-badge" alt="GitHub License">
+</p>
 
-Workspace is a powerful application designed to install and manage all your repositories in your chosen destination. Built with **Zig**, it uses **gh** to fetch your repositories from GitHub with ease.
+<p align="center">
+  A powerful Zig-based tool to manage all your GitHub repositories with ease
+</p>
 
-## Table of Contents
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Limitations](#limitations)
-- [Development](#development)
+## ✨ Features
+
+- 🚀 **Fast & Efficient** - Built with Zig for maximum performance
+- 📦 **Bulk Operations** - Clone all repositories from any GitHub organization or user
+- 🔄 **Concurrent Processing** - Handle multiple repositories simultaneously
+- 🧹 **Cleanup Tools** - Prune unwanted repositories automatically
+- 🛠️ **Easy Setup** - Simple installation process for both Windows and Linux
+
+## 📜 Table of Contents
+- [Quick Start](#-quick-start)
+- [Usage](#-usage)
+  - [Example](#example)
+- [Development](#️️-development)
   - [Prerequisites](#prerequisites)
   - [Steps](#steps)
+- [Contributing](#-contributing)
 - [License](#license)
 
-## Features
-- Clone all repositories from a GitHub organization or user.
-- Lightweight, fast, and written in **Zig**.
-- Easy-to-use CLI for managing repositories.
+## 🚀 Quick Start
 
-## Installation
-To install Workspace, run the following command:
+Choose your platform and run the installation command:
 
-For **Linux**:
+🐧 Linux
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.sh | bash
 ```
 
-For **Windows PowerShell**:
+🪟 Windows PowerShell
+
 ```bash
 irm raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1 | iex
 ```
@@ -38,7 +48,7 @@ This script will:
 - Add it to your PATH.
 - Ensure all required dependencies are installed.
 
-## Usage
+## 📖 Usage
 Workspace can be called with the following arguments:
 
 For **cloning** repositories from a GitHub organization or user:
@@ -69,20 +79,32 @@ workspace update
 ```
 
 ### Example
-To clone the first 10 repositories from the `ziglang` organization to the `./workspace` directory with a limit of 10 repositories and 5 concurrent processes:
+Clone repositories from an organization
+
 ```bash
-workspace clone ziglang ./workspace --limit 10 --processes 5 --prune
+# Clone first 10 repos from ziglang
+workspace clone ziglang ./workspace -l 10
+
+# Clone all repos with 8 concurrent processes
+workspace clone microsoft ./code -p 8
+
+# Clone and clean up old repos
+workspace clone gaskam ./projects --prune
 ```
 
-## Development
+> [!NOTE] 
+> Note that if you provide `--limit` and `--prune` flags, we'll delete 
+> the repositories that no longer exist once the limit is reached.
+
+## 🛠️ Development
 For developers who want to contribute or build Workspace from source:
 
 ### Prerequisites
-* Zig (latest version recommended). Install from [here](https://ziglang.org/download/)
-
-* GitHub CLI (gh), with their installation instructions [here](https://github.com/cli/cli#installation)
-
-* Git, forever and ever.
+| Tool | Purpose | Installation |
+|------|---------|--------------|
+| ⚡ Zig | Building the application | [Download](https://ziglang.org/download/) |
+| 🐙 GitHub CLI | Interacting with GitHub | [Download](https://github.com/cli/cli#installation) |
+| 📦 Git | Git, forever and ever | [Download](https://git-scm.com/downloads) |
 
 ### Steps
 1. Clone the repository:
@@ -103,7 +125,16 @@ zig build
 ```bash
 ./zig-out/bin/workspace -h
 ```
+## 🤝 Contributing
+Contributions are welcome! Feel free to:
+
+* 🐛 Report bugs
+* 💡 Suggest new features
+* 📝 Improve documentation
+* 🔧 Submit pull requests
 
 ## License
 
 Workspace is licensed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+
+Made with ❤️ by Gaskam

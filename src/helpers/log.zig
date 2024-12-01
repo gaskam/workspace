@@ -1,5 +1,10 @@
 const std = @import("std");
 
+/// Logging utility module that provides colored console output functionality
+/// with different log levels and ANSI color formatting.
+/// Represents ANSI color codes for terminal output formatting.
+/// Each variant corresponds to a specific color code that can be
+/// used to style console text.
 pub const Colors = enum {
     reset,
     brightBlue,
@@ -25,11 +30,15 @@ pub const Colors = enum {
         "\x1b[38;5;245m", //grey
     };
 
+    /// Returns the ANSI escape sequence for the specified color.
     pub inline fn code(self: Colors) []const u8 {
         return colorCodes[@intFromEnum(self)];
     }
 };
 
+/// Defines the available logging levels for message output.
+/// Each level is associated with a specific prefix and color
+/// in the console output.
 const LogLevel = enum {
     help,
     info,
@@ -39,12 +48,36 @@ const LogLevel = enum {
     default,
 };
 
+const StdoutType = @TypeOf(std.io.getStdOut().writer());
+
+const StdoutGetter = struct {
+    stdout: ?StdoutType,
+
+    pub fn get(self: *StdoutGetter) StdoutType {
+        if (self.stdout == null) {
+            const stdout = std.io.getStdOut().writer();
+            self.stdout = stdout;
+            return stdout;
+        }
+        return self.stdout.?;
+    }
+};
+
+var stdoutGetter = StdoutGetter{ .stdout = null };
+
+/// Prints a formatted log message to stdout with the specified level and color.
+///
+/// Parameters:
+///     level: The LogLevel determining the prefix and styling of the message
+///     message: The format string for the message to be printed
+///     args: The arguments to be formatted into the message string
+/// Returns: void, but may return an error if writing to stdout fails
 pub inline fn log(
     comptime level: LogLevel,
     comptime message: []const u8,
     args: anytype,
 ) !void {
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutGetter.get();
     switch (level) {
         .help => _ = try stdout.print("{s}[HELP]{s} ", .{ Colors.green.code(), Colors.reset.code() }),
         .info => _ = try stdout.print("{s}[INFO]{s} ", .{ Colors.green.code(), Colors.reset.code() }),
@@ -54,5 +87,5 @@ pub inline fn log(
         .default => {},
     }
     try stdout.print(message, args);
-    try stdout.writeByte('\n');
+    if (comptime level != .default) try stdout.writeByte('\n');
 }

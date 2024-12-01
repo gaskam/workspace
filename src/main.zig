@@ -1,6 +1,5 @@
-//! Workspace is a CLI tool for managing GitHub repositories.
-//! It allows users to clone all repositories from a user or organization
-//! and automatically creates a VSCode workspace configuration.
+//! Workspace - A CLI tool for managing GitHub repositories.
+//! Provides functionalities for cloning repositories and generating VSCode workspace files.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -313,6 +312,11 @@ pub fn main() !void {
     }
 }
 
+/// Configuration structure for clone operations
+/// targetFolder: Optional destination folder for cloned repositories
+/// limit: Optional maximum number of repositories to clone
+/// processes: Number of concurrent clone operations
+/// prune: Whether to remove repositories that no longer exist
 const CloneConfig = struct {
     targetFolder: ?[]const u8,
     limit: ?[]const u8 = null,
@@ -320,6 +324,9 @@ const CloneConfig = struct {
     prune: bool = false,
 };
 
+/// Parses command line arguments for clone operations
+/// Returns: CloneConfig with parsed settings
+/// Error: Returns error if argument parsing fails
 fn parseArgs(
     args: []const []const u8,
 ) !CloneConfig {
@@ -369,7 +376,10 @@ fn parseArgs(
     return config;
 }
 
-/// Generates a VSCode workspace file with the given folders and default settings
+/// Generates a VSCode workspace file containing all cloned repositories
+/// allocator: Memory allocator for dynamic allocations
+/// folders: Array of workspace folders to include
+/// path: Target path for the workspace file
 fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, path: []const u8) !void {
     var buffer = std.ArrayList(u8).init(allocator);
     defer buffer.deinit();
@@ -399,8 +409,10 @@ fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, p
     });
 }
 
-/// Checks if a folder exists and is empty
-/// Returns true if folder doesn't exist or is empty
+/// Verifies if a folder is empty or doesn't exist
+/// folder: Directory handle for the parent folder
+/// repoName: Name of the repository/folder to check
+/// Returns: true if folder doesn't exist or is empty, false otherwise
 fn isEmptyFolder(
     folder: std.fs.Dir,
     repoName: []const u8,
@@ -432,7 +444,8 @@ fn isEmptyFolder(
 }
 
 /// Checks GitHub for new versions of workspace
-/// Returns true if an update is available
+/// allocator: Memory allocator for HTTP operations
+/// Returns: true if an update is available, false otherwise
 fn checkForUpdates(allocator: std.mem.Allocator) !bool {
     const content = fetchUrlContent(allocator, "https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/INSTALL") catch {
         try log(.default, "", .{});
@@ -447,7 +460,9 @@ fn checkForUpdates(allocator: std.mem.Allocator) !bool {
 }
 
 /// Fetches content from a URL using HTTP GET
-/// Returns the content as a string, caller owns the memory
+/// allocator: Memory allocator for HTTP operations
+/// url: Target URL to fetch
+/// Returns: Allocated string containing the response body
 fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u8 {
     var client = std.http.Client{ .allocator = allocator };
     defer client.deinit();
@@ -467,7 +482,9 @@ fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u8 {
     return body;
 }
 
-/// Creates a directory and handles various filesystem errors
+/// Creates a new directory with comprehensive error handling
+/// path: Path where the directory should be created
+/// Returns: true if directory was created, false if it already exists
 fn createFolder(
     path: []const u8,
 ) !bool {
@@ -505,14 +522,15 @@ fn createFolder(
     return true;
 }
 
-/// Custom error type for update operations
+/// Error type for update-related operations
 const UpdateError = error{
     CreateProcessFailed,
     SpawnUpdateFailed,
 };
 
-/// Spawns the appropriate update script based on the OS
-/// Exits the current process after spawning the updater
+/// Initiates the update process by spawning the appropriate update script
+/// allocator: Memory allocator for process spawning
+/// Note: This function exits the current process after spawning the updater
 fn spawnUpdater(allocator: std.mem.Allocator) UpdateError!void {
     const args = if (isWindows)
         &[_][]const u8{
@@ -538,7 +556,9 @@ fn spawnUpdater(allocator: std.mem.Allocator) UpdateError!void {
     std.process.exit(0);
 }
 
-/// Helper function to force remove a directory on Windows using PowerShell
+/// Forces directory removal on Windows systems using PowerShell
+/// allocator: Memory allocator for process execution
+/// path: Path to the directory to remove
 fn forceRemoveDir(allocator: std.mem.Allocator, path: []const u8) !void {
     const result = try run(allocator, @constCast(&[_][]const u8{
         "powershell.exe",
@@ -563,7 +583,9 @@ fn forceRemoveDir(allocator: std.mem.Allocator, path: []const u8) !void {
     }
 }
 
-/// Prunes repositories that no longer exist in the user's/organization's account
+/// Removes repositories that no longer exist in the user's/organization's account
+/// list: Array of current repository information
+/// targetFolder: Path to the folder containing repositories
 fn prune(list: []RepoInfo, targetFolder: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -605,7 +627,11 @@ fn prune(list: []RepoInfo, targetFolder: []const u8) !void {
     }
 }
 
-/// Spawns a clone process for a given repository
+/// Creates and starts a clone process for a repository
+/// allocator: Memory allocator for process creation
+/// repo: Repository information
+/// targetFolder: Destination folder for the clone
+/// Returns: Process structure containing child process and repo info
 fn spawnCloneProcess(allocator: std.mem.Allocator, repo: RepoInfo, targetFolder: []const u8) !Process {
     return Process{
         .child = try spawn(allocator, @constCast(&[_][]const u8{
@@ -618,13 +644,18 @@ fn spawnCloneProcess(allocator: std.mem.Allocator, repo: RepoInfo, targetFolder:
     };
 }
 
-/// Cleans up the result of a process
+/// Frees memory associated with a process result
+/// allocator: Memory allocator used for the process
+/// result: Process execution result to clean up
 fn cleanupProcessResult(allocator: std.mem.Allocator, result: std.process.Child.RunResult) void {
     allocator.free(result.stdout);
     allocator.free(result.stderr);
 }
 
-/// Handles the result of a clone process
+/// Processes the result of a repository clone operation
+/// result: Process execution result
+/// repo: Repository information
+/// Returns: true if clone was successful, false otherwise
 fn handleCloneResult(result: std.process.Child.RunResult, repo: RepoInfo) bool {
     switch (result.term.Exited) {
         0 => {
@@ -642,7 +673,9 @@ fn handleCloneResult(result: std.process.Child.RunResult, repo: RepoInfo) bool {
     }
 }
 
-/// Removes a repository directory
+/// Removes a repository directory with platform-specific handling
+/// targetFolder: Parent folder containing the repository
+/// dirName: Name of the repository directory to remove
 fn removeRepository(targetFolder: []const u8, dirName: []const u8) !void {
     if (isWindows) {
         const dirPath = try std.fs.path.join(std.heap.page_allocator, &.{targetFolder, dirName});

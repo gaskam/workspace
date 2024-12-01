@@ -191,8 +191,11 @@ pub fn main() !void {
             try log(.info, "We love {s}Zig{s} too!\n\nLet's support them on {s}https://github.com/ziglang/zig{s}", .{ Colors.yellow.code(), Colors.reset.code(), Colors.green.code(), Colors.reset.code() });
         },
         .uninstall => {
+            const stdout = std.io.getStdOut();
+            var bw = std.io.bufferedWriter(stdout.writer());
             try log(.warning, "This command will {s}UNINSTALL WORKSPACE{s} from your system.\n\nAre you sure you want to proceed? [y/N]", .{ Colors.red.code(), Colors.reset.code() });
             try log(.default, "> ", .{});
+            try bw.flush();
             const stdin = std.io.getStdIn().reader();
 
             var inputList = std.ArrayList(u8).init(allocator);

@@ -183,6 +183,7 @@ pub fn main() !void {
             }
 
             try log(.info, "Starting update process...", .{});
+            try log(.info, "Wait just a moment and try running version command", .{});
             try spawnUpdater(allocator);
             return;
         },
@@ -208,7 +209,8 @@ pub fn main() !void {
                 defer allocator.free(path);
                 if (!std.mem.endsWith(u8, path, ".workspace")) {
                     try log(.default, "\n", .{});
-                    try log(.err, "Failed to uninstall Workspace: {s}", .{"Invalid workspace path"});
+                    try log(.err, "Failed to uninstall Workspace:", .{});
+                    try log(.err, "-> Invalid workspace path: {s}", .{path});
                     return;
                 }
                 const cmd = if (isWindows)

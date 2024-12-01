@@ -213,19 +213,26 @@ pub fn main() !void {
                     try log(.err, "-> Invalid workspace path: {s}", .{path});
                     return;
                 }
-                const cmd = if (isWindows)
-                    &[_][]const u8{
+                
+                var cmd_list = std.ArrayList([]const u8).init(allocator);
+                defer cmd_list.deinit();
+
+                if (isWindows) {
+                    try cmd_list.appendSlice(&[_][]const u8{
                         "powershell.exe",
                         "-NoProfile",
                         "-ExecutionPolicy",
                         "Bypass",
                         "-Command",
-                        "Start-Sleep -Seconds 2; Remove-Item -Path " ++ path ++ " -Recurse -Force",
-                    }
-                else
-                    &[_][]const u8{ "sh", "-c", "sleep", "2", "&&", "rm", "-rf", path };
+                    });
+                    const ps_cmd = try std.fmt.allocPrint(allocator, "Start-Sleep -Seconds 2; Remove-Item -Path {s} -Recurse -Force", .{path});
+                    defer allocator.free(ps_cmd);
+                    try cmd_list.append(ps_cmd);
+                } else {
+                    try cmd_list.appendSlice(&[_][]const u8{ "sh", "-c", "sleep", "2", "&&", "rm", "-rf", path });
+                }
 
-                var child = std.process.Child.init(cmd, allocator);
+                var child = std.process.Child.init(cmd_list.items, allocator);
                 child.stdin_behavior = .Ignore;
                 child.stdout_behavior = .Ignore;
                 child.stderr_behavior = .Ignore;

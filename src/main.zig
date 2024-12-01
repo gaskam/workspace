@@ -54,15 +54,63 @@ const Workspace = struct {
     folders: []WorkspaceFolder,
 };
 
+/// Structure for managing clone processes
+const Process = struct {
+    child: std.process.Child,
+    repo: RepoInfo,
+};
+
+/// Structure for managing a pool of clone processes
+const ProcessPool = struct {
+    processes: std.ArrayList(*Process),
+    allocator: std.mem.Allocator,
+    arena: std.mem.Allocator,
+
+    fn init(allocator: std.mem.Allocator, arena: std.mem.Allocator, capacity: usize) !ProcessPool {
+        return ProcessPool{
+            .processes = try std.ArrayList(*Process).initCapacity(arena, capacity),
+            .allocator = allocator,
+            .arena = arena,
+        };
+    }
+
+    fn spawn(self: *ProcessPool, repo: RepoInfo, targetFolder: []const u8) !void {
+        const process = try self.arena.create(Process);
+        process.* = try spawnCloneProcess(self.allocator, repo, targetFolder);
+        try self.processes.append(process);
+    }
+
+    fn waitOne(self: *ProcessPool) !?struct { success: bool, process: *Process } {
+        if (self.processes.items.len == 0) return null;
+
+        // Find first finished process
+        for (self.processes.items, 0..) |proc, i| {
+            if (wait(self.allocator, &proc.child)) |result| {
+                defer cleanupProcessResult(self.allocator, result);
+                const success = handleCloneResult(result, proc.repo);
+                _ = self.processes.swapRemove(i);
+                return .{ .success = success, .process = proc };
+            } else |_| continue;
+        }
+        return null;
+    }
+};
+
 /// Entry point of the application.
 /// Handles command-line arguments and dispatches to appropriate handlers.
 pub fn main() !void {
-    // Initialize memory allocators
+    // Use arena allocator for temporary allocations
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const arena_allocator = arena.allocator();
+
+    // Use GPA for long-lived allocations
     var GPA = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = GPA.deinit();
     const allocator = GPA.allocator();
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+
+    const args = try std.process.argsAlloc(arena_allocator);
+    // No need to free args since arena handles it
 
     const command = std.meta.stringToEnum(Commands, if (args.len >= 2) args[1] else "help") orelse Commands.help;
     switch (command) {
@@ -127,11 +175,6 @@ pub fn main() !void {
                         try schedule.append(repo);
                     }
 
-                    const Process = struct {
-                        child: std.process.Child,
-                        repo: RepoInfo,
-                    };
-
                     var processes = std.ArrayList(Process).init(allocator);
                     defer processes.deinit();
 
@@ -149,37 +192,29 @@ pub fn main() !void {
                         try processes.append(process);
                     }
 
-                    // Wait for all processes to complete
-                    for (0..total) |i| {
-                        const process = processes.items[i];
-                        const result = try wait(allocator, @constCast(&process.child));
-                        defer {
-                            allocator.free(result.stdout);
-                            allocator.free(result.stderr);
+                    // Optimize parallel cloning
+                    if (schedule.items.len > 0) {
+                        const max_concurrent = @min(config.processes, schedule.items.len);
+                        var pool = try ProcessPool.init(allocator, arena_allocator, max_concurrent);
+
+                        // Initialize pool
+                        const initial_count = @min(max_concurrent, schedule.items.len);
+                        for (0..initial_count) |_| {
+                            const repo = schedule.pop();
+                            try pool.spawn(repo, config.targetFolder.?);
                         }
 
-                        switch (result.term.Exited) {
-                            0 => try log(.cloned, "{s}{s}{s}", .{ Colors.brightBlue.code(), process.repo.nameWithOwner, Colors.reset.code() }),
-                            1 => try log(.err, "Error: {s}", .{result.stderr}),
-                            else => try log(.err, "Unexpected error: {d} (when cloning {s})\n{s}", .{ result.term.Exited, process.repo.nameWithOwner, result.stderr }),
-                        }
+                        // Process remaining repositories
+                        while (schedule.items.len > 0 or pool.processes.items.len > 0) {
+                            if (try pool.waitOne()) |result| {
+                                if (!result.success) failed += 1;
 
-                        if (result.term.Exited != 0) {
-                            failed += 1;
-                        }
-
-                        if (schedule.items.len > 0) {
-                            const toSpawn = schedule.pop();
-                            const newProcess = Process{
-                                .child = try spawn(allocator, @constCast(&[_][]const u8{
-                                    "gh",
-                                    "repo",
-                                    "clone",
-                                    toSpawn.nameWithOwner,
-                                }), config.targetFolder.?),
-                                .repo = toSpawn,
-                            };
-                            try processes.append(newProcess);
+                                // Replace finished process with new one if available
+                                if (schedule.items.len > 0) {
+                                    const repo = schedule.pop();
+                                    try pool.spawn(repo, config.targetFolder.?);
+                                }
+                            }
                         }
                     }
 
@@ -328,34 +363,32 @@ fn parseArgs(
 
 /// Generates a VSCode workspace file with the given folders and default settings
 fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, path: []const u8) !void {
-    // Define default VSCode settings
-    const Settings = struct {
-        files_autoSave: []const u8 = "afterDelay",
-        editor_formatOnSave: bool = true,
-        editor_detectIndentation: bool = true,
-        git_enableSmartCommit: bool = true,
-        git_confirmSync: bool = false,
-    };
+    var buffer = std.ArrayList(u8).init(allocator);
+    defer buffer.deinit();
+    
+    try buffer.appendSlice("{\"folders\":[");
+    
+    for (folders, 0..) |folder, i| {
+        if (i > 0) try buffer.appendSlice(",");
+        try buffer.appendSlice("{\"path\":\"");
+        try buffer.appendSlice(folder.path);
+        try buffer.appendSlice("\"}");
+    }
+    
+    try buffer.appendSlice("],\"settings\":{");
+    try buffer.appendSlice("\"files.autoSave\":\"afterDelay\",");
+    try buffer.appendSlice("\"editor.formatOnSave\":true,");
+    try buffer.appendSlice("\"editor.detectIndentation\":true,");
+    try buffer.appendSlice("\"git.enableSmartCommit\":true,");
+    try buffer.appendSlice("\"git.confirmSync\":false}}");
 
-    const WorkspaceFile = struct {
-        folders: []WorkspaceFolder,
-        settings: Settings = .{},
-    };
+    const workspace_path = try std.fs.path.join(allocator, &.{ path, "workspace.code-workspace" });
+    defer allocator.free(workspace_path);
 
-    const workspace = WorkspaceFile{
-        .folders = folders,
-    };
-
-    const workspaceFilePath = try std.fs.path.join(allocator, &.{ path, "workspace.code-workspace" });
-    defer allocator.free(workspaceFilePath);
-
-    var workspaceJson = std.ArrayList(u8).init(allocator);
-    defer workspaceJson.deinit();
-    try std.json.stringify(workspace, .{}, workspaceJson.writer());
-
-    const file = try std.fs.cwd().createFile(workspaceFilePath, .{});
-    defer file.close();
-    try file.writeAll(workspaceJson.items);
+    try std.fs.cwd().writeFile(.{
+        .sub_path = workspace_path,
+        .data = buffer.items,
+    });
 }
 
 /// Checks if a folder exists and is empty
@@ -524,86 +557,118 @@ fn forceRemoveDir(allocator: std.mem.Allocator, path: []const u8) !void {
 
 /// Prunes repositories that no longer exist in the user's/organization's account
 fn prune(list: []RepoInfo, targetFolder: []const u8) !void {
-    const hasher = std.hash.Murmur2_64;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
 
-    var buffer: [100_000]u64 = undefined;
-    for (0..list.len) |i| {
-        const repo = list[i];
-        const name = repo.name;
-        buffer[i] = hasher.hash(name);
+    // Create hash set with default capacity
+    var repo_set = std.StringHashMap(void).init(arena_alloc);
+    
+    // Add repositories in chunks to avoid overflow
+    const chunk_size: u32 = 1024;
+    var i: usize = 0;
+    while (i < list.len) : (i += chunk_size) {
+        const end = @min(i + chunk_size, list.len);
+        try repo_set.ensureUnusedCapacity(@intCast(end - i));
+        for (list[i..end]) |repo| {
+            try repo_set.put(repo.name, {});
+        }
     }
-    const repoNames = buffer[0..list.len];
-    std.mem.sort(u64, repoNames, {}, std.sort.asc(u64));
 
-    // First, collect directories to prune
-    var toPrune = std.ArrayList([]const u8).init(std.heap.page_allocator);
-    defer toPrune.deinit();
-
+    var dir_to_remove = std.ArrayList([]const u8).init(arena_alloc);
+    
+    // Collect directories to remove
     {
-        var outputFolder = try std.fs.cwd().openDir(targetFolder, .{ .iterate = true });
+        var dir = try std.fs.cwd().openDir(targetFolder, .{ .iterate = true });
+        defer dir.close();
+        
+        var iter = dir.iterate();
+        while (try iter.next()) |entry| {
+            if (entry.kind != .directory) continue;
+            if (!repo_set.contains(entry.name)) {
+                try dir_to_remove.append(try arena_alloc.dupe(u8, entry.name));
+            }
+        }
+    }
+
+    // Remove directories
+    for (dir_to_remove.items) |dir_name| {
+        try removeRepository(targetFolder, dir_name);
+    }
+}
+
+/// Spawns a clone process for a given repository
+fn spawnCloneProcess(allocator: std.mem.Allocator, repo: RepoInfo, targetFolder: []const u8) !Process {
+    return Process{
+        .child = try spawn(allocator, @constCast(&[_][]const u8{
+            "gh",
+            "repo",
+            "clone",
+            repo.nameWithOwner,
+        }), targetFolder),
+        .repo = repo,
+    };
+}
+
+/// Cleans up the result of a process
+fn cleanupProcessResult(allocator: std.mem.Allocator, result: std.process.Child.RunResult) void {
+    allocator.free(result.stdout);
+    allocator.free(result.stderr);
+}
+
+/// Handles the result of a clone process
+fn handleCloneResult(result: std.process.Child.RunResult, repo: RepoInfo) bool {
+    switch (result.term.Exited) {
+        0 => {
+            log(.cloned, "{s}{s}{s}", .{ Colors.brightBlue.code(), repo.nameWithOwner, Colors.reset.code() }) catch unreachable;
+            return true;
+        },
+        1 => {
+            log(.err, "Error: {s}", .{result.stderr}) catch unreachable;
+            return false;
+        },
+        else => {
+            log(.err, "Unexpected error: {d} (when cloning {s})\n{s}", .{ result.term.Exited, repo.nameWithOwner, result.stderr }) catch unreachable;
+            return false;
+        },
+    }
+}
+
+/// Removes a repository directory
+fn removeRepository(targetFolder: []const u8, dirName: []const u8) !void {
+    if (isWindows) {
+        const dirPath = try std.fs.path.join(std.heap.page_allocator, &.{targetFolder, dirName});
+        forceRemoveDir(std.heap.page_allocator, dirPath) catch |force_err| {
+            log(.err, "Failed to force remove directory {s}: {!}", .{ dirName, force_err }) catch unreachable;
+        };
+    } else {
+        var outputFolder = try std.fs.cwd().openDir(targetFolder, .{});
         defer outputFolder.close();
-        var dir = outputFolder.iterate();
-
-        while (try dir.next()) |entry| {
-            const dirName = entry.name;
-            if (std.mem.eql(u8, entry.name, "workspace.code-workspace")) {
-                continue;
+        outputFolder.deleteTree(dirName) catch |err| {
+            switch (err) {
+                error.FileTooBig => log(.err, "File too big to delete: {s}", .{dirName}) catch unreachable,
+                error.DeviceBusy => log(.err, "Device is busy", .{}) catch unreachable,
+                error.AccessDenied => {
+                    log(.err, "Access denied when deleting {s}", .{dirName}) catch unreachable;
+                    log(.info, "Please run the command as an administrator", .{}) catch unreachable;
+                },
+                error.SystemResources => log(.err, "Insufficient system resources", .{}) catch unreachable,
+                error.Unexpected => log(.err, "Unexpected error: {!}", .{err}) catch unreachable,
+                error.NameTooLong => log(.err, "Path name too long: {s}", .{dirName}) catch unreachable,
+                error.NoDevice => log(.err, "No such device for path: {s}", .{dirName}) catch unreachable,
+                error.InvalidWtf8 => log(.err, "Invalid WTF-8 in path: {s}", .{dirName}) catch unreachable,
+                error.FileSystem => log(.err, "Filesystem error when deleting {s}", .{dirName}) catch unreachable,
+                error.NotDir => log(.err, "Not a directory: {s}", .{dirName}) catch unreachable,
+                error.FileBusy => log(.err, "File is busy: {s}", .{dirName}) catch unreachable,
+                error.ProcessFdQuotaExceeded => log(.err, "Process file descriptor quota exceeded", .{}) catch unreachable,
+                error.SystemFdQuotaExceeded => log(.err, "System file descriptor quota exceeded", .{}) catch unreachable,
+                error.SymLinkLoop => log(.err, "Symbolic link loop detected in {s}", .{dirName}) catch unreachable,
+                error.BadPathName => log(.err, "Invalid pathname: {s}", .{dirName}) catch unreachable,
+                error.InvalidUtf8 => log(.err, "Invalid UTF-8 in path: {s}", .{dirName}) catch unreachable,
+                error.ReadOnlyFileSystem => log(.err, "Cannot delete on read-only filesystem", .{}) catch unreachable,
+                error.NetworkNotFound => log(.err, "Network path not found: {s}", .{dirName}) catch unreachable,
             }
-            const dirHash = hasher.hash(dirName);
-
-            const eqlFunc = struct {
-                fn inner(_: void, a: u64, b: u64) std.math.Order {
-                    if (a == b) return .eq else if (a < b) return .lt else return .gt;
-                }
-            }.inner;
-
-            if (std.sort.binarySearch(u64, dirHash, repoNames, {}, eqlFunc) == null) {
-                try toPrune.append(try std.heap.page_allocator.dupe(u8, dirName));
-            }
-        }
+        };
     }
-
-    // Now delete the collected directories
-    var outputFolder = try std.fs.cwd().openDir(targetFolder, .{});
-    defer outputFolder.close();
-
-    for (toPrune.items) |dirName| {
-        defer std.heap.page_allocator.free(dirName);
-        if (isWindows) {
-            const dirPath = try std.fs.path.join(std.heap.page_allocator, &.{targetFolder, dirName});
-            forceRemoveDir(std.heap.page_allocator, dirPath) catch |force_err| {
-                try log(.err, "Failed to force remove directory {s}: {!}", .{ dirName, force_err });
-                continue;
-            };
-        } else {
-            outputFolder.deleteTree(dirName) catch |err| {
-                switch (err) {
-                    error.FileTooBig => try log(.err, "File too big to delete: {s}", .{dirName}),
-                    error.DeviceBusy => try log(.err, "Device is busy", .{}),
-                    error.AccessDenied => {
-                        try log(.err, "Access denied when deleting {s}", .{dirName});
-                        try log(.info, "Please run the command as an administrator", .{});
-                        continue;
-                    },
-                    error.SystemResources => try log(.err, "Insufficient system resources", .{}),
-                    error.Unexpected => try log(.err, "Unexpected error: {!}", .{err}),
-                    error.NameTooLong => try log(.err, "Path name too long: {s}", .{dirName}),
-                    error.NoDevice => try log(.err, "No such device for path: {s}", .{dirName}),
-                    error.InvalidWtf8 => try log(.err, "Invalid WTF-8 in path: {s}", .{dirName}),
-                    error.FileSystem => try log(.err, "Filesystem error when deleting {s}", .{dirName}),
-                    error.NotDir => try log(.err, "Not a directory: {s}", .{dirName}),
-                    error.FileBusy => try log(.err, "File is busy: {s}", .{dirName}),
-                    error.ProcessFdQuotaExceeded => try log(.err, "Process file descriptor quota exceeded", .{}),
-                    error.SystemFdQuotaExceeded => try log(.err, "System file descriptor quota exceeded", .{}),
-                    error.SymLinkLoop => try log(.err, "Symbolic link loop detected in {s}", .{dirName}),
-                    error.BadPathName => try log(.err, "Invalid pathname: {s}", .{dirName}),
-                    error.InvalidUtf8 => try log(.err, "Invalid UTF-8 in path: {s}", .{dirName}),
-                    error.ReadOnlyFileSystem => try log(.err, "Cannot delete on read-only filesystem", .{}),
-                    error.NetworkNotFound => try log(.err, "Network path not found: {s}", .{dirName}),
-                }
-                continue;
-            };
-        }
-        try log(.info, "Removed {s} as it does no longer belong to the user/organization", .{dirName});
-    }
+    log(.info, "Removed {s} as it does no longer belong to the user/organization", .{dirName}) catch unreachable;
 }

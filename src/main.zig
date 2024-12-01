@@ -203,9 +203,11 @@ pub fn main() !void {
             if (inputList.items.len == 1 and (inputList.items[0] == 'y' or inputList.items[0] == 'Y')) {
                 var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
                 var selfExeDir = try std.fs.openDirAbsolute(try std.fs.selfExeDirPath(&buf), .{});
+                defer selfExeDir.close();
                 const path = try selfExeDir.realpathAlloc(allocator, "../..");
-                selfExeDir.close();
+                defer allocator.free(path);
                 if (!std.mem.endsWith(u8, path, ".workspace")) {
+                    try log(.default, "\n", .{});
                     try log(.err, "Failed to uninstall Workspace: {s}", .{"Invalid workspace path"});
                     return;
                 }
@@ -222,7 +224,7 @@ pub fn main() !void {
                         "-Force",
                     }
                 else
-                    &[_][]const u8{ "sh", "-c", "rm", "-rf", path };
+                    &[_][]const u8{ "sh", "-c", "sleep", "3", "&&", "rm", "-rf", path };
 
                 var child = std.process.Child.init(cmd, allocator);
                 child.stdin_behavior = .Ignore;
@@ -234,8 +236,9 @@ pub fn main() !void {
                     try log(.err, "Failed to spawn uninstall process: {s}", .{@errorName(err)});
                     return;
                 };
-                std.process.exit(0);
+                return;
             } else {
+                try log(.default, "\n", .{});
                 try log(.info, "Uninstall process aborted :) Welcome back!", .{});
             }
         },

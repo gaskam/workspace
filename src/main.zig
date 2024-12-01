@@ -8,7 +8,7 @@ const processHelper = @import("helpers/process.zig");
 const logHelper = @import("helpers/log.zig");
 
 /// Core configuration constants
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const isWindows = @import("builtin").os.tag == .windows;
 const MAX_INPUT_LENGTH = 64;
 const MAX_HTTP_BUFFER = 256;

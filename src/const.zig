@@ -1,5 +1,5 @@
 /// Core configuration constants
-pub const VERSION = "1.1.5";
+pub const VERSION = "1.2.0";
 pub const MAX_INPUT_LENGTH = 64;
 pub const MAX_HTTP_BUFFER = 256;
 

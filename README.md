@@ -78,6 +78,11 @@ For **updating** Workspace:
 workspace update
 ```
 
+For **uninstalling** Workspace:
+```bash
+workspace uninstall
+```
+
 ### Example
 Clone repositories from an organization
 

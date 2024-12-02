@@ -210,42 +210,47 @@ pub fn main() !void {
                 defer selfExeDir.close();
                 const path = try selfExeDir.realpathAlloc(allocator, "../");
                 defer allocator.free(path);
+                try log(.default, "\n", .{});
+                try log(.info, "Uninstalling Workspace from {s}", .{path});
                 if (!std.mem.endsWith(u8, path, ".workspace")) {
-                    try log(.default, "\n", .{});
                     try log(.err, "Failed to uninstall Workspace:", .{});
                     try log(.err, "-> Invalid workspace path: {s}", .{path});
                     return;
                 }
-                
-                var cmd_list = std.ArrayList([]const u8).init(allocator);
-                defer cmd_list.deinit();
 
                 if (isWindows) {
-                    try cmd_list.appendSlice(&[_][]const u8{
+                    const escapedPath = try std.fmt.allocPrint(allocator, "{s}", .{path});
+                    defer allocator.free(escapedPath);
+
+                    const ps_cmd = &[_][]const u8{
                         "powershell.exe",
                         "-NoProfile",
                         "-ExecutionPolicy",
                         "Bypass",
                         "-Command",
-                    });
-                    const ps_cmd = try std.fmt.allocPrint(allocator, "Start-Sleep -Seconds 2; Remove-Item -Path '{s}' -Recurse -Force", .{path});
-                    defer allocator.free(ps_cmd);
-                    try cmd_list.append(ps_cmd);
+                        "Start-Sleep",
+                        "-Seconds",
+                        "2;",
+                        "Remove-Item",
+                        "-Path",
+                        escapedPath,
+                        "-Recurse",
+                        "-Force",
+                    };
+
+                    var child = std.process.Child.init(ps_cmd, allocator);
+                    child.stdin_behavior = .Ignore;
+                    child.stdout_behavior = .Ignore;
+                    child.stderr_behavior = .Ignore;
+
+                    child.spawn() catch |err| {
+                        try log(.default, "\n", .{});
+                        try log(.err, "Failed to spawn uninstall process: {s}", .{@errorName(err)});
+                        return;
+                    };
                 } else {
-                    try cmd_list.appendSlice(&[_][]const u8{ "sh", "-c", "sleep", "2", "&&", "rm", "-rf", path });
+                    try std.fs.deleteTreeAbsolute(path);
                 }
-
-                var child = std.process.Child.init(cmd_list.items, allocator);
-                child.stdin_behavior = .Ignore;
-                child.stdout_behavior = .Ignore;
-                child.stderr_behavior = .Ignore;
-
-                child.spawn() catch |err| {
-                    try log(.default, "\n", .{});
-                    try log(.err, "Failed to spawn uninstall process: {s}", .{@errorName(err)});
-                    return;
-                };
-                return;
             } else {
                 try log(.default, "\n", .{});
                 try log(.info, "Uninstall process aborted :) Welcome back!", .{});

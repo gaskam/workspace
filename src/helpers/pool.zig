@@ -22,6 +22,7 @@ const Process = struct {
 const ProcessResult = struct {
     success: bool,
     result: std.process.Child.RunResult,
+    name: []const u8,
 };
 
 const NodeType = std.DoublyLinkedList(Process).Node;
@@ -59,6 +60,7 @@ pub const ProcessPool = struct {
         return .{
             .success = success,
             .result = result,
+            .name = firstProcess.repo.nameWithOwner,
         };
     }
 };

@@ -25,7 +25,7 @@ pub fn spawn(allocator: std.mem.Allocator, argv: []const []const u8, cwd: ?[]con
 pub fn wait(allocator: std.mem.Allocator, process: *std.process.Child) !std.process.Child.RunResult {
     var stdout = std.ArrayList(u8).init(allocator);
     var stderr = std.ArrayList(u8).init(allocator);
-    try process.collectOutput(&stdout, &stderr, 4096);
+    try process.collectOutput(&stdout, &stderr, 1048576); // 1024*1024 bytes
 
     const term = try process.wait();
 

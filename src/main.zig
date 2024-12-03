@@ -129,6 +129,7 @@ pub fn main() !void {
                     while (pool.processes.len > 0) {
                         const result = try pool.next();
                         if (!result.?.success) {
+                            try log(.err, "Failed to clone {s}{s}{s}", .{ Colors.brightBlue.code(), result.?.name, Colors.reset.code() });
                             failed += 1;
                         }
 

@@ -100,16 +100,40 @@ workspace clone gaskam ./projects --prune
 > [!NOTE] 
 > Note that if you provide `--limit` and `--prune` flags, we'll delete 
 > the repositories that no longer exist once the limit is reached.
+>
+> This is useful for keeping your workspace clean and up-to-date.
+
+> [!WARNING]
+> If you use the `--processes` flag with a number higher than your 
+> number of CPU threads, you may experience performance issues.
+>
+> This can be useful if you want to override the default number of 
+> simultaneous processes, in order to go faster. It *will* be faster 
+> than the default value, but at the cost of a higher ressource usage.
+
+## Benchmarks
+This benchmark was run on a **GitHub codespaces** instance with **4 vCPUs** and **16GB of RAM**.
+
+> [!NOTE] GitHub Codespaces is quite slow, since it clones with just one process.
+
+We're using **hyperfine** to measure the time taken to clone each **repositories** from the specified organization.
+
+Realized on **2024-12-03** with the **1.2.2** version of Workspace.
+
+| Organization | Repositories Cloned | Time Taken [s]   |
+|--------------|---------------------|------------------|
+| ziglang      | 24                  | 103.458 ± 4.833  |
+| gaskam       | 11                  | 3.454 ± 0.185    |
 
 ## 🛠️ Development
 For developers who want to contribute or build Workspace from source:
 
 ### Prerequisites
-| Tool | Purpose | Installation |
-|------|---------|--------------|
-| ⚡ Zig | Building the application | [Download](https://ziglang.org/download/) |
-| 🐙 GitHub CLI | Interacting with GitHub | [Download](https://github.com/cli/cli#installation) |
-| 📦 Git | Git, forever and ever | [Download](https://git-scm.com/downloads) |
+| Tool          | Purpose                         | Installation                                        |
+|---------------|---------------------------------|-----------------------------------------------------|
+| ⚡ Zig         | Building the application        | [Download](https://ziglang.org/download/)           |
+| 🐙 GitHub CLI | Interacting with GitHub         | [Download](https://github.com/cli/cli#installation) |
+| 📦 Git        | Git, forever and ever           | [Download](https://git-scm.com/downloads)           |
 
 ### Steps
 1. Clone the repository:

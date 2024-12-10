@@ -68,6 +68,11 @@ pub fn main() !void {
 
             var config = try parseArgs(args[3..]);
 
+            if (config.limit != null and try std.fmt.parseInt(usize, config.limit.?, 10) == 0) {
+                try log(.err, "Invalid cloning limit: 0", .{});
+                return;
+            }
+
             const list = try run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "list", name, "--json", "nameWithOwner,name,owner", "--limit", config.limit orelse "100000" }), null);
             defer {
                 allocator.free(list.stdout);

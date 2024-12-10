@@ -13,12 +13,9 @@ const RepoInfo = constants.RepoInfo;
 /// list: Array of current repository information
 /// targetFolder: Path to the folder containing repositories
 pub fn prune(allocator: std.mem.Allocator, list: []RepoInfo, targetFolder: []const u8) !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const arena_alloc = arena.allocator();
-
     // Create hash set with default capacity
-    var repo_set = std.StringHashMap(void).init(arena_alloc);
+    var repo_set = std.StringHashMap(void).init(allocator);
+    defer repo_set.deinit();
 
     // Add repositories in chunks to avoid overflow
     const chunk_size: u32 = 1024;
@@ -31,7 +28,8 @@ pub fn prune(allocator: std.mem.Allocator, list: []RepoInfo, targetFolder: []con
         }
     }
 
-    var dir_to_remove = std.ArrayList([]const u8).init(arena_alloc);
+    var dir_to_remove = std.ArrayList([]const u8).init(allocator);
+    defer dir_to_remove.deinit();
 
     // Collect directories to remove
     {
@@ -42,13 +40,14 @@ pub fn prune(allocator: std.mem.Allocator, list: []RepoInfo, targetFolder: []con
         while (try iter.next()) |entry| {
             if (entry.kind != .directory) continue;
             if (!repo_set.contains(entry.name)) {
-                try dir_to_remove.append(try arena_alloc.dupe(u8, entry.name));
+                try dir_to_remove.append(try allocator.dupe(u8, entry.name));
             }
         }
     }
 
     // Remove directories
     for (dir_to_remove.items) |dir_name| {
+        defer allocator.free(dir_name);
         try removeRepository(allocator, targetFolder, dir_name);
     }
 }

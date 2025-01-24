@@ -5,7 +5,7 @@ on:
     - cron:  '30 06,18 * * *'
 
 jobs:
-  build:
+  updater:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,4 +17,4 @@ jobs:
         uses: saadmk11/github-actions-version-updater@v0.8.1
         with:
           token: ${{ secrets.WORKFLOW_TOKEN }}
-          pull_request_labels: "automerge"
+          pull_request_labels: "automerge, no-release"

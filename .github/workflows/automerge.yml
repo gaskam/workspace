@@ -2,7 +2,7 @@ name: Automerge
 
 on:
   schedule:
-    - cron: '30 06,18 * * *'
+    - cron: '45 06,18 * * *'
 
   pull_request_review:
     types:
@@ -34,9 +34,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: reitermarkus/automerge@v2.8.0
-        with:
-          token: ${{ secrets.WORKFLOW_TOKEN }}
-          required-labels: automerge
-          pull-request: ${{ github.event.inputs.pull-request }}
-          review: ${{ github.event.inputs.review }}
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Merge pull request
+        if: contains(github.event.pull_request.labels.*.name, 'automerge')
+        run: |
+          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+          gh pr merge ${{ github.event.pull_request.number }} --auto --merge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

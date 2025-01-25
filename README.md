@@ -26,8 +26,12 @@
   - [Steps](#steps)
 - [Contributing](#-contributing)
 - [License](#license)
+- [Star History](#star-history)
 
 ## 🚀 Quick Start
+
+<img src="https://img.shields.io/github/downloads/gaskam/workspace/total?style=for-the-badge&link=https%3A%2F%2Fgithub.com%2Fgaskam%2Fworkspace%2Freleases
+" alt="GitHub Downloads">‎ 
 
 Choose your platform and run the installation command:
 
@@ -167,3 +171,13 @@ Contributions are welcome! Feel free to:
 Workspace is licensed under the MIT License. See the [LICENSE](LICENSE) file for more information.
 
 Made with ❤️ by Gaskam
+
+## Star History
+
+<a href="https://star-history.com/#gaskam/workspace&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=gaskam/workspace&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=gaskam/workspace&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=gaskam/workspace&type=Date" />
+ </picture>
+</a>

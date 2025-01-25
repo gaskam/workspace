@@ -30,8 +30,7 @@
 
 ## 🚀 Quick Start
 
-<img src="https://img.shields.io/github/downloads/gaskam/workspace/total?style=for-the-badge&link=https%3A%2F%2Fgithub.com%2Fgaskam%2Fworkspace%2Freleases
-" alt="GitHub Downloads">‎ 
+<img src="https://img.shields.io/github/downloads/gaskam/workspace/total?style=for-the-badge" alt="GitHub Downloads">‎ 
 
 Choose your platform and run the installation command:
 

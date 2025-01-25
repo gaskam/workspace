@@ -114,9 +114,7 @@ jobs:
       - name: Add release installation instructions
         run: |
           EXISTING_NOTES=$(gh release view $TAG_NAME --json body -q .body)
-          INSTALL_NOTES="## New version ! ${TAG_NAME}
-
-          You can install the latest version with the commands below:
+          INSTALL_NOTES="You can install the latest version (${TAG_NAME}) with the commands below:
 
           For **Linux**:
           \`\`\`bash

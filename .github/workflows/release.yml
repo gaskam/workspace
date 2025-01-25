@@ -24,7 +24,7 @@ permissions:
 jobs:
   versioning:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: (github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no-release')) || github.event_name == 'workflow_dispatch'
     outputs:
       VERSION: ${{ steps.bump.outputs.VERSION }}
 
@@ -84,7 +84,7 @@ jobs:
   push:
     needs: versioning
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: (github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no-release')) || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
@@ -117,7 +117,7 @@ jobs:
   release:
     needs: [push, versioning]
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: (github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no-release')) || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository

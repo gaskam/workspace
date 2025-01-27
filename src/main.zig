@@ -27,6 +27,7 @@ const createFolder = fs.createFolder;
 const isEmptyFolder = fs.isEmptyFolder;
 const generateWorkspace = fs.generateWorkspace;
 const checkForUpdates = update.checkForUpdates;
+const threadedCheckConnection = update.threadedCheckConnection;
 const spawnUpdater = update.spawnUpdater;
 
 /// Colors helper aliases
@@ -58,6 +59,8 @@ pub fn main() !void {
     const command = std.meta.stringToEnum(Commands, if (args.len >= 2) args[1] else "help") orelse Commands.help;
     switch (command) {
         .clone => {
+            try threadedCheckConnection();
+
             if (args.len < 3) {
                 try log(.err, "Missing required argument: <organization/user>", .{});
                 return;
@@ -163,7 +166,7 @@ pub fn main() !void {
                 },
                 // Probably just an invalid user/organization name
                 1 => try log(.err, "{s}\n", .{list.stderr}),
-                2 => try log(.err, "Command gets canceled, you really want to make us sweat, lol.\nWell, if you like this project, star it at https://github.com/gaskam/workspace.\n", .{}),
+                2 => try log(.err, "Command got cancelled, you really want to make us sweat, lol.\nWell, if you like this project, star it at https://github.com/gaskam/workspace.\n", .{}),
                 3 => try log(.err, "Oopsie! This error was never supposed to happen!", .{}),
                 4 => try log(.err, "Please login to gh using {s}gh auth login{s}", .{ Colors.grey.code(), Colors.reset.code() }),
                 else => {
@@ -174,6 +177,7 @@ pub fn main() !void {
         },
         .version => {
             try log(.info, "{s}", .{VERSION});
+            try threadedCheckConnection();
             const latestVersion = try checkForUpdates(allocator);
             if (latestVersion) {
                 try log(.default, "\n", .{});
@@ -181,6 +185,8 @@ pub fn main() !void {
             }
         },
         .update, .upgrade => {
+            try threadedCheckConnection();
+
             const hasUpdate = try checkForUpdates(allocator);
             if (!hasUpdate) {
                 try log(.info, "Workspace is already up-to-date", .{});

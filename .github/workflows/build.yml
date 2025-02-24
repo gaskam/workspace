@@ -16,6 +16,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.2.2
@@ -43,6 +48,12 @@ jobs:
 
           zvm use $ZIG_VERSION
           zig build
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2.2.0
+        with:
+          subject-path: './zig-out/*'
+          show-summary: true
 
       - name: Install Zip
         run: sudo apt-get install -y zip
@@ -114,6 +125,7 @@ jobs:
       - name: Add release installation instructions
         run: |
           EXISTING_NOTES=$(gh release view $TAG_NAME --json body -q .body)
+          ATTESTATION_LINK="https://github.com/${{ github.repository }}/attestations"
           INSTALL_NOTES="You can install the latest version (${TAG_NAME}) with the commands below:
 
           For **Linux**:
@@ -129,6 +141,13 @@ jobs:
           Or juste update it!
           \`\`\`bash
           workspace update
+          \`\`\`
+
+          The binaries in this release are signed and verifiable via [GitHub Attestations](${ATTESTATION_LINK}).
+
+          You can check the certificates with:
+          \`\`\`bash
+          gh attestation verify [fichier] --owner gaskam
           \`\`\`
 
           $EXISTING_NOTES"

@@ -12,7 +12,7 @@ const MAX_HTTP_BUFFER = constants.MAX_HTTP_BUFFER;
 /// Returns: true if an update is available, false otherwise
 pub fn checkForUpdates(allocator: std.mem.Allocator) !bool {
     try threadedCheckConnection();
-    
+
     const content = fetchUrlContent(allocator, "https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/INSTALL") catch {
         try log(.default, "\n", .{});
         try log(.warning, "Failed to check for updates...", .{});
@@ -46,40 +46,6 @@ pub fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u
 
     const body = try req.reader().readAllAlloc(allocator, MAX_HTTP_BUFFER);
     return body;
-}
-
-/// Error type for update-related operations
-const UpdateError = error{
-    CreateProcessFailed,
-    SpawnUpdateFailed,
-};
-
-/// Initiates the update process by spawning the appropriate update script
-/// allocator: Memory allocator for process spawning
-/// Note: This function exits the current process after spawning the updater
-pub fn spawnUpdater(allocator: std.mem.Allocator) UpdateError!void {
-    const args = if (isWindows)
-        &[_][]const u8{
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            "(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.ps1') | Invoke-Expression",
-        }
-    else
-        &[_][]const u8{ "sh", "-c", "curl -fsSL https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/install.sh | bash" };
-
-    var child = std.process.Child.init(args, allocator);
-    child.stdin_behavior = .Ignore;
-    child.stdout_behavior = .Ignore;
-    child.stderr_behavior = .Ignore;
-
-    child.spawn() catch |err| {
-        log(.err, "Failed to spawn update process: {s}", .{@errorName(err)}) catch unreachable;
-        return error.SpawnUpdateFailed;
-    };
-    std.process.exit(0);
 }
 
 // TODO

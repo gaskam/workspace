@@ -5,37 +5,61 @@ const log = @import("log.zig").log;
 
 const WorkspaceFolder = constants.WorkspaceFolder;
 
+/// Editor we have to generate the workspace configuration file for
+pub const Editors = enum {
+    /// Defaults to none if actual workspace folder is not found
+    auto,
+    none,
+    VsCode,
+    SublimeText,
+};
+
 /// Generates a VSCode workspace file containing all cloned repositories
 /// allocator: Memory allocator for dynamic allocations
 /// folders: Array of workspace folders to include
 /// path: Target path for the workspace file
-pub fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, path: []const u8) !void {
-    var buffer = std.ArrayList(u8).init(allocator);
-    defer buffer.deinit();
+pub fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, path: []const u8, workspaceType: Editors, prune: bool) !void {
+    //TODO remove temp "_ = prune;"
+    _ = prune;
+    switch (workspaceType) {
+        .none => return,
+        .VsCode, .SublimeText => {
+            var buffer = std.ArrayList(u8).init(allocator);
+            defer buffer.deinit();
 
-    try buffer.appendSlice("{\"folders\":[");
+            try buffer.appendSlice("{\"folders\":[");
 
-    for (folders, 0..) |folder, i| {
-        if (i > 0) try buffer.appendSlice(",");
-        try buffer.appendSlice("{\"path\":\"");
-        try buffer.appendSlice(folder.path);
-        try buffer.appendSlice("\"}");
+            for (folders, 0..) |folder, i| {
+                if (i > 0) try buffer.appendSlice(",");
+                try buffer.appendSlice("{\"path\":\"");
+                try buffer.appendSlice(folder.path);
+                try buffer.appendSlice("\"}");
+            }
+
+            try buffer.append('}');
+
+            const workspace_name = if (workspaceType == .VsCode) "workspace.code-workspace" else "workspace.sublime-project";
+            const workspace_path = try std.fs.path.join(allocator, &.{ path, workspace_name });
+            defer allocator.free(workspace_path);
+
+            try std.fs.cwd().writeFile(.{
+                .sub_path = workspace_path,
+                .data = buffer.items,
+            });
+        },
+        .auto => {},
     }
+}
 
-    try buffer.appendSlice("],\"settings\":{");
-    try buffer.appendSlice("\"files.autoSave\":\"afterDelay\",");
-    try buffer.appendSlice("\"editor.formatOnSave\":true,");
-    try buffer.appendSlice("\"editor.detectIndentation\":true,");
-    try buffer.appendSlice("\"git.enableSmartCommit\":true,");
-    try buffer.appendSlice("\"git.confirmSync\":false}}");
+fn isEditor(allocator: std.mem.Allocator, basePath: []const u8, name: []const u8) !bool {
+    const total_path = try std.fs.path.join(allocator, &.{ basePath, name });
+    defer allocator.free(total_path);
 
-    const workspace_path = try std.fs.path.join(allocator, &.{ path, "workspace.code-workspace" });
-    defer allocator.free(workspace_path);
-
-    try std.fs.cwd().writeFile(.{
-        .sub_path = workspace_path,
-        .data = buffer.items,
-    });
+    std.fs.cwd().access(total_path) catch |err| {
+        if (err == error.FileNotFound) return false;
+        return err;
+    };
+    return true;
 }
 
 /// Verifies if a folder is empty or doesn't exist

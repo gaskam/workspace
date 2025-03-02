@@ -1,10 +1,9 @@
 const std = @import("std");
-const Command = @import("../const.zig").Command;
+const constants = @import("../const.zig");
 
 const processHelper = @import("../helpers/process.zig");
 const logHelper = @import("../helpers/log.zig");
 const fs = @import("../helpers/fs.zig");
-const constants = @import("../const.zig");
 const network = @import("../helpers/network.zig");
 
 const parseArgs = @import("../helpers/args.zig").parseArgs;
@@ -14,13 +13,12 @@ const prune = @import("../helpers/prune.zig").prune;
 const log = logHelper.log;
 const Colors = logHelper.Colors;
 
-pub const command: Command = .{
+pub const command: constants.Command = .{
     .name = "clone",
-    .args = struct {},
-    .function = execute,
+    .function = &execute,
 };
 
-fn execute(allocator: std.mem.Allocator, args: anytype) anyerror!void {
+fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
     try network.threadedCheckConnection();
 
     if (args.len < 3) {
@@ -123,7 +121,7 @@ fn execute(allocator: std.mem.Allocator, args: anytype) anyerror!void {
                 foldersList.appendAssumeCapacity(constants.WorkspaceFolder{ .path = repo.name });
             }
 
-            try fs.generateWorkspace(allocator, foldersList.items, config.targetFolder.?);
+            try fs.generateWorkspace(allocator, foldersList.items, config.targetFolder.?, .VsCode, false);
         },
         // Probably just an invalid user/organization name
         1 => try log(.err, "{s}\n", .{list.stderr}),

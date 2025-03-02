@@ -1,19 +1,17 @@
 const std = @import("std");
-const Command = @import("../const.zig").Command;
+const constants = @import("../const.zig");
 
 const logHelper = @import("../helpers/log.zig");
-const constants = @import("../const.zig");
 
 const log = logHelper.log;
 const Colors = logHelper.Colors;
 
-pub const command: Command = .{
+pub const command: constants.Command = .{
     .name = "uninstall",
-    .args = struct {},
-    .function = execute,
+    .function = &execute,
 };
 
-fn execute(allocator: std.mem.Allocator, args: anytype) anyerror!void {
+fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
     if (args.len == 3 and std.mem.eql(u8, args[2], "--fast")) {
         try uninstall(allocator);
     } else {

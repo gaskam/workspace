@@ -1,21 +1,20 @@
 const std = @import("std");
-const Command = @import("../const.zig").Command;
+const constants = @import("../const.zig");
 
 const logHelper = @import("../helpers/log.zig");
-const constants = @import("../const.zig");
 const network = @import("../helpers/network.zig");
 
 const log = logHelper.log;
 
 const isWindows = constants.isWindows;
 
-pub const command: Command = .{
+pub const command: constants.Command = .{
     .name = "update",
-    .args = struct {},
-    .function = execute,
+    .alias = "upgrade",
+    .function = &execute,
 };
 
-fn execute(allocator: std.mem.Allocator, args: anytype) anyerror!void {
+fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
     _ = args;
     try network.threadedCheckConnection();
 

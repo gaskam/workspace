@@ -24,6 +24,8 @@ pub const WorkspaceFolder = struct {
 
 pub const Command = struct {
     name: []const u8,
-    args: type,
-    function: fn (std.mem.Allocator, anytype) anyerror!void,
+    alias: ?[]const u8 = null,
+    function: *const fn (std.mem.Allocator, Args) anyerror!void,
 };
+
+pub const Args = [][]const u8;

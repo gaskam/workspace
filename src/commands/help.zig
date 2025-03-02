@@ -1,18 +1,17 @@
 const std = @import("std");
-const Command = @import("../const.zig").Command;
+const constants = @import("../const.zig");
 
 const logHelper = @import("../helpers/log.zig");
 
 const log = logHelper.log;
 const Colors = logHelper.Colors;
 
-pub const command: Command = .{
+pub const command: constants.Command = .{
     .name = "help",
-    .args = struct {},
-    .function = execute,
+    .function = &execute,
 };
 
-fn execute(allocator: std.mem.Allocator, args: anytype) anyerror!void {
+fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
     _ = allocator;
     const helpMessage =
         "{0s}Workspace{1s} is a powerful application designed to install and manage all your repositories.\n\n" ++

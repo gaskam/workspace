@@ -25,7 +25,48 @@ pub const WorkspaceFolder = struct {
 pub const Command = struct {
     name: []const u8,
     alias: ?[]const u8 = null,
-    function: *const fn (std.mem.Allocator, Args) anyerror!void,
+    function: *const fn (std.mem.Allocator, [][]const u8) anyerror!void,
 };
 
-pub const Args = [][]const u8;
+pub const ArgType = enum {
+    filepath,
+    text
+};
+
+pub const Arg = struct {
+    name: []const u8,
+    description: []const u8,
+    group: ArgType,
+};
+
+pub const FlagsType = enum {
+    boolean,
+    number,
+};
+
+pub const Flag = struct {
+    name: []const u8,
+    description: []const u8,
+    group: FlagsType, 
+};
+
+pub const CommandGroup = enum {
+    help,
+    versionning,
+    cloning,
+};
+
+pub const Definition = struct {
+    command: Command,
+    description: []const u8 = "",
+    group: CommandGroup,
+    arguments: struct {
+        mandatory: []const Arg = &.{},
+        optionals: []const Arg = &.{},
+    } = .{
+        .mandatory = &.{},
+        .optionals = &.{},
+    },
+    flags: []const Flag = &.{},
+};
+

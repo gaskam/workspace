@@ -11,7 +11,11 @@ pub const command: constants.Command = .{
     .function = &execute,
 };
 
-fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
+pub const definition: constants.Definition = .{
+    .command = command,
+};
+
+fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
     _ = .{ allocator, args };
     try log(.info, "We love {s}Zig{s} too!\n\nLet's support them on {s}https://github.com/ziglang/zig{s}", .{ Colors.yellow.code(), Colors.reset.code(), Colors.green.code(), Colors.reset.code() });
 }

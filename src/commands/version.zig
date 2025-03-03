@@ -12,7 +12,11 @@ pub const command: constants.Command = .{
     .function = &execute,
 };
 
-fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
+pub const definition: constants.Definition = .{
+    .command = command,
+};
+
+fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
     _ = args;
     try log(.info, "{s}", .{constants.VERSION});
     try network.threadedCheckConnection();

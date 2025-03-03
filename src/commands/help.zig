@@ -1,17 +1,39 @@
 const std = @import("std");
 const constants = @import("../const.zig");
-
 const logHelper = @import("../helpers/log.zig");
+const commands = @import("../commands.zig");
 
 const log = logHelper.log;
 const Colors = logHelper.Colors;
 
-pub const command: constants.Command = .{
+const RESET = Colors.reset.code();
+const GREEN = Colors.green.code();
+const CYAN = Colors.cyan.code();
+const GREY = Colors.grey.code();
+const MAGENTA = Colors.magenta.code();
+const YELLOW = Colors.yellow.code();
+const RED = Colors.red.code();
+
+const command: constants.Command = .{
     .name = "help",
     .function = &execute,
 };
 
-fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
+pub const definition: constants.Definition = .{
+    .command = command,
+    .description = "Display help information",
+    .arguments = .{
+        .optionals = &.{
+            .{
+                .name = "subcommand",
+                .description = "Display help about a specific subcommand",
+                .group = .text,
+            },
+        }
+    }
+};
+
+fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
     _ = allocator;
     const helpMessage =
         "{0s}Workspace{1s} is a powerful application designed to install and manage all your repositories.\n\n" ++
@@ -30,7 +52,7 @@ fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
         "  {4s}update{1s}, {4s}upgrade{1s}                          Update workspace to the latest version\n\n" ++
         "  {5s}help{1s}                                     Display help information\n\n" ++
         "{3s}e.g. => $ workspace clone ziglang ./workspace --limit 10 --processes 5 --prune{1s}\n\n" ++
-        "  {6s}uninstall{1s} {3s}[--fast]{1s}               Uninstall workspace :(\n\n" ++
+        "  {6s}uninstall{1s} {3s}[--fast]{1s}                       Uninstall workspace :(\n\n" ++
         "Contribute about Workspace:                {0s}https://github.com/gaskam/workspace{1s}";
     try log(.help, helpMessage, .{
         Colors.green.code(),
@@ -42,8 +64,18 @@ fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
         Colors.red.code(),
     });
 
-    if (args.len >= 2 and !std.mem.eql(u8, args[1], "help")) {
+    var string: []const u8 = "Commands:\n";
+
+    inline for (commands.all) |def| {
+        const name = def.command.name;
+        const alias = def.command.alias;
+        const arguments = def.arguments;
+        const flags = def.flags;
+        string = string ++ "";
+    }
+
+    if (args.len >= 1 and !std.mem.eql(u8, args[0], "help")) {
         try log(.default, "\n", .{});
-        try log(.err, "Unknown command: {s}", .{args[1]});
+        try log(.err, "Unknown command: {s}", .{args[0]});
     }
 }

@@ -13,12 +13,16 @@ const prune = @import("../helpers/prune.zig").prune;
 const log = logHelper.log;
 const Colors = logHelper.Colors;
 
-pub const command: constants.Command = .{
+const command: constants.Command = .{
     .name = "clone",
     .function = &execute,
 };
 
-fn execute(allocator: std.mem.Allocator, args: constants.Args) anyerror!void {
+pub const definition: constants.Definition = .{
+    .command = command,
+};
+
+fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
     try network.threadedCheckConnection();
 
     if (args.len < 3) {

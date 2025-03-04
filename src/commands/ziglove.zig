@@ -13,6 +13,8 @@ pub const command: constants.Command = .{
 
 pub const definition: constants.Definition = .{
     .command = command,
+    .description = "Show some love for Zig",
+    .group = .hidden,
 };
 
 fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {

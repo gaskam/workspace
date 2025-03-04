@@ -19,19 +19,13 @@ const command: constants.Command = .{
     .function = &execute,
 };
 
-pub const definition: constants.Definition = .{
-    .command = command,
-    .description = "Display help information",
-    .arguments = .{
-        .optionals = &.{
-            .{
-                .name = "subcommand",
-                .description = "Display help about a specific subcommand",
-                .group = .text,
-            },
-        }
-    }
-};
+pub const definition: constants.Definition = .{ .command = command, .description = "Display help information", .group = .help, .arguments = .{ .optionals = &.{
+    .{
+        .name = "subcommand",
+        .description = "Display help about a specific subcommand",
+        .group = .text,
+    },
+} } };
 
 fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
     _ = allocator;
@@ -64,15 +58,85 @@ fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
         Colors.red.code(),
     });
 
-    var string: []const u8 = "Commands:\n";
+    // Create a buffer for our help text
+    var help_buffer: [8192]u8 = undefined; // Reasonably large buffer for help text
+    var fbs = std.io.fixedBufferStream(&help_buffer);
+    var writer = fbs.writer();
+
+    try writer.writeAll("Commands:\n");
 
     inline for (commands.all) |def| {
+        // Skip hidden commands
+        if (def.group == .hidden) continue;
+
         const name = def.command.name;
         const alias = def.command.alias;
         const arguments = def.arguments;
         const flags = def.flags;
-        string = string ++ "";
+
+        // Choose color based on command group
+        const color = switch (def.group) {
+            .cloning => GREEN,
+            .help => YELLOW,
+            .versionning => MAGENTA,
+            .uninstall => RED,
+            .hidden => unreachable,
+        };
+
+        // Format command name with color
+        try writer.print("  {s}{s}{s}", .{ color, name, RESET });
+
+        // Format alias if present
+        if (alias) |a| {
+            try writer.print(", {s}{s}{s}", .{ color, a, RESET });
+        }
+
+        // Format arguments
+        if (arguments.mandatory.len > 0) {
+            for (arguments.mandatory) |arg| {
+                try writer.print(" {s}<{s}>{s}", .{ CYAN, arg.name, RESET });
+            }
+        }
+
+        // Format optional arguments
+        if (arguments.optionals.len > 0) {
+            for (arguments.optionals) |arg| {
+                try writer.print(" {s}[{s}]{s}", .{ GREY, arg.name, RESET });
+            }
+        }
+
+        // Add command description
+        try writer.print("  {s}{s}{s}", .{ GREY, def.description, RESET });
+
+        // End the line for the command description
+        try writer.writeAll("\n");
+
+        // Format flags if any
+        if (flags.len > 0) {
+            // Display flag(s) with pipe notation
+            for (flags) |flag| {
+                // Format the flag with proper alignment
+                try writer.print("  |-- ", .{});
+                try writer.print("{s}[--{s}]", .{ GREY, flag.name });
+
+                // Add argument placeholders for flags that require values
+                if (flag.group == .number) {
+                    try writer.print(" {s}<number>{s}", .{ CYAN, RESET });
+                }
+
+                // Use proper alignment with a format specifier for the description
+                try writer.print("{s}{s:>40}{s}\n", .{ GREY, flag.description, RESET });
+            }
+
+            // Add an extra empty line after flags for better readability
+            if (flags.len > 0) {
+                try writer.writeAll("\n");
+            }
+        }
     }
+
+    // Print the generated help information
+    try log(.default, "{s}", .{fbs.getWritten()});
 
     if (args.len >= 1 and !std.mem.eql(u8, args[0], "help")) {
         try log(.default, "\n", .{});

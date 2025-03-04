@@ -13,6 +13,15 @@ pub const command: constants.Command = .{
 
 pub const definition: constants.Definition = .{
     .command = command,
+    .description = "Uninstall workspace :(",
+    .group = .uninstall,
+    .flags = &.{
+        .{
+            .name = "--fast",
+            .description = "Uninstall workspace without confirmation",
+            .group = .boolean,
+        },
+    },
 };
 
 fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {

@@ -20,6 +20,55 @@ const command: constants.Command = .{
 
 pub const definition: constants.Definition = .{
     .command = command,
+    .description = "Clone all repositories from an organization/user",
+    .group = .cloning,
+    .arguments = .{ 
+        .mandatory = &.{
+            .{
+                .name = "organization/user",
+                .description = "Organization or user name",
+                .group = .text,
+            },
+        },
+        .optionals = &.{
+        .{
+            .name = "destination",
+            .description = "Destination folder",
+            .group = .text,
+        },
+    } },
+    .flags = &.{
+        .{
+            .name = "--limit",
+            .description = "Limit the number of repositories to clone",
+            .group = .number,
+        },
+        .{
+            .name = "--processes",
+            .description = "Limit the number of concurrent processes",
+            .group = .number,
+        },
+        .{
+            .name = "--auto",
+            .description = "Generates a workspace file",
+            .group = .boolean,
+        },
+        .{
+            .name = "--code",
+            .description = "Generates a workspace file for VSCode",
+            .group = .boolean,
+        },
+        .{
+            .name = "--sublime",
+            .description = "Generates a workspace file for Sublime Text",
+            .group = .boolean,
+        },
+        .{
+            .name = "--prune",
+            .description = "Delete repositories that do not belong to current user",
+            .group = .boolean,
+        },
+    },
 };
 
 fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {

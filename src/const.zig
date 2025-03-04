@@ -54,6 +54,8 @@ pub const CommandGroup = enum {
     help,
     versionning,
     cloning,
+    uninstall,
+    hidden,
 };
 
 pub const Definition = struct {

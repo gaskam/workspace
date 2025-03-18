@@ -83,7 +83,7 @@ jobs:
           token: ${{ secrets.WORKFLOW_TOKEN }}
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4.1.9
+        uses: actions/download-artifact@v4.2.0
         with:
           name: build
           path: zig-out

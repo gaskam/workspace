@@ -76,7 +76,7 @@ jobs:
           echo "${{ steps.bump.outputs.VERSION }}" > INSTALL
 
       - name: Archive version artifact
-        uses: actions/upload-artifact@v4.6.1
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: version
           path: .
@@ -95,7 +95,7 @@ jobs:
           token: ${{ secrets.WORKFLOW_TOKEN }}
 
       - name: Download version artifact
-        uses: actions/download-artifact@v4.2.0
+        uses: actions/download-artifact@v4.2.1
         with:
           name: version
 

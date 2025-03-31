@@ -23,13 +23,13 @@ pub fn spawn(allocator: std.mem.Allocator, argv: []const []const u8, cwd: ?[]con
 /// Returns: Process execution result containing exit code and captured output
 /// Error: May return error on IO or process operations
 pub fn wait(allocator: std.mem.Allocator, process: *std.process.Child) !std.process.Child.RunResult {
-    var stdout = std.ArrayList(u8).init(allocator);
-    var stderr = std.ArrayList(u8).init(allocator);
-    try process.collectOutput(&stdout, &stderr, 1048576); // 1024*1024 bytes
+    var stdout: std.ArrayListUnmanaged(u8) = .empty;
+    var stderr: std.ArrayListUnmanaged(u8) = .empty;
+    try process.collectOutput(allocator, &stdout, &stderr, 1048576); // 1024*1024 bytes
 
     const term = try process.wait();
 
-    return .{ .term = term, .stdout = try stdout.toOwnedSlice(), .stderr = try stderr.toOwnedSlice() };
+    return .{ .term = term, .stdout = try stdout.toOwnedSlice(allocator), .stderr = try stderr.toOwnedSlice(allocator) };
 }
 
 /// Executes a command with arguments in specified directory and waits for completion

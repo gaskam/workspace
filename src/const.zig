@@ -25,7 +25,7 @@ pub const WorkspaceFolder = struct {
 pub const Command = struct {
     name: []const u8,
     alias: ?[]const u8 = null,
-    function: *const fn (std.mem.Allocator, [][]const u8) anyerror!void,
+    function: *const fn (std.mem.Allocator, [][:0]u8) anyerror!void,
 };
 
 pub const ArgType = enum {

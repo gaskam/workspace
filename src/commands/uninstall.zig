@@ -24,7 +24,7 @@ pub const definition: constants.Definition = .{
     },
 };
 
-fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
+fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
     if (args.len == 3 and std.mem.eql(u8, args[2], "--fast")) {
         try uninstall(allocator);
     } else {
@@ -51,7 +51,7 @@ fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
 }
 
 fn uninstall(allocator: std.mem.Allocator) anyerror!void {
-    var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
     var selfExeDir = try std.fs.openDirAbsolute(try std.fs.selfExeDirPath(&buf), .{});
     defer selfExeDir.close();
     const path = try selfExeDir.realpathAlloc(allocator, "../");

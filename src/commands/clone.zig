@@ -71,7 +71,7 @@ pub const definition: constants.Definition = .{
     },
 };
 
-fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
+fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
     try network.threadedCheckConnection();
 
     if (args.len < 3) {
@@ -142,9 +142,9 @@ fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
             // Create a process pool for concurrent cloning
             var pool = ProcessPool.init(allocator);
 
-            for (@min(config.processes, schedule.items.len)) |_| {
+            for (0..@min(config.processes, schedule.items.len)) |_| {
                 const repo = schedule.pop();
-                try pool.spawn(repo, config.targetFolder.?);
+                try pool.spawn(repo.?, config.targetFolder.?);
             }
 
             while (pool.processes.len > 0) {
@@ -154,7 +154,7 @@ fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
                     failed += 1;
                 }
 
-                if (schedule.popOrNull()) |repo| {
+                if (schedule.pop()) |repo| {
                     try pool.spawn(repo, config.targetFolder.?);
                 }
             }

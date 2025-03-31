@@ -27,7 +27,7 @@ pub const definition: constants.Definition = .{ .command = command, .description
     },
 } } };
 
-fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
+fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
     _ = allocator;
     const helpMessage =
         "{0s}Workspace{1s} is a powerful application designed to install and manage all your repositories.\n\n" ++

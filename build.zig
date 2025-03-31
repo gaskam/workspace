@@ -1,16 +1,16 @@
 const std = @import("std");
 
-const targets: []const std.zig.CrossTarget = &.{
-    std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .windows },
-    std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .linux },
-    std.zig.CrossTarget{ .cpu_arch = .aarch64, .os_tag = .linux },
-    std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .macos },
-    std.zig.CrossTarget{ .cpu_arch = .aarch64, .os_tag = .macos },
+const targets: []const std.Target.Query = &.{
+    std.Target.Query{ .cpu_arch = .x86_64, .os_tag = .windows },
+    std.Target.Query{ .cpu_arch = .x86_64, .os_tag = .linux },
+    std.Target.Query{ .cpu_arch = .aarch64, .os_tag = .linux },
+    std.Target.Query{ .cpu_arch = .x86_64, .os_tag = .macos },
+    std.Target.Query{ .cpu_arch = .aarch64, .os_tag = .macos },
 
     // Baseline builds
-    std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .linux, .cpu_model = .baseline },
-    std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .macos, .cpu_model = .baseline },
-    std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .windows, .cpu_model = .baseline },
+    std.Target.Query{ .cpu_arch = .x86_64, .os_tag = .linux, .cpu_model = .baseline },
+    std.Target.Query{ .cpu_arch = .x86_64, .os_tag = .macos, .cpu_model = .baseline },
+    std.Target.Query{ .cpu_arch = .x86_64, .os_tag = .windows, .cpu_model = .baseline },
 };
 
 // Although this function looks imperative, note that its job is to

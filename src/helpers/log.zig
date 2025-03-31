@@ -17,7 +17,7 @@ pub const Colors = enum {
     white,
     grey,
 
-    const colorCodes = [@typeInfo(Colors).Enum.fields.len][]const u8{
+    const colorCodes = [@typeInfo(Colors).@"enum".fields.len][]const u8{
         "\x1b[0m", // reset
         "\x1b[94m", // brightBlue
         "\x1b[32m", // green

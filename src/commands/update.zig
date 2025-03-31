@@ -20,7 +20,7 @@ pub const definition: constants.Definition = .{
     .group = .versionning,
 };
 
-fn execute(allocator: std.mem.Allocator, args: [][]const u8) anyerror!void {
+fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
     _ = args;
     try network.threadedCheckConnection();
 

@@ -25,14 +25,11 @@ pub const definition: constants.Definition = .{
 };
 
 fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
-    if (args.len == 3 and std.mem.eql(u8, args[2], "--fast")) {
+    if (args.len == 2 and std.mem.eql(u8, args[1], "--fast")) {
         try uninstall(allocator);
     } else {
-        const stdout = std.io.getStdOut();
-        var bw = std.io.bufferedWriter(stdout.writer());
         try log(.warning, "This command will {s}UNINSTALL WORKSPACE{s} from your system.\n\nAre you sure you want to proceed? [y/N]", .{ Colors.red.code(), Colors.reset.code() });
         try log(.default, "> ", .{});
-        try bw.flush();
         const stdin = std.io.getStdIn().reader();
 
         var inputList = std.ArrayList(u8).init(allocator);

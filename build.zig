@@ -64,6 +64,18 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    const exe_output = b.addInstallArtifact(exe, .{
+        .dest_dir = .{
+            .override = .{
+                .custom = "",
+            },
+        },
+        .pdb_dir = .disabled,
+        .implib_dir = .disabled,
+    });
+
+    b.getInstallStep().dependOn(&exe_output.step);
+
     // Add all files names in the src folder to `files`
     var src = try std.fs.cwd().openDir("src", .{});
     var dir = try src.openDir("commands", .{ .iterate = true });

@@ -11,7 +11,7 @@ const MAX_HTTP_BUFFER = constants.MAX_HTTP_BUFFER;
 /// allocator: Memory allocator for HTTP operations
 /// Returns: true if an update is available, false otherwise
 pub fn checkForUpdates(allocator: std.mem.Allocator) !bool {
-    try threadedCheckConnection();
+    try threadedCheckConnection(allocator);
 
     const content = fetchUrlContent(allocator, "https://raw.githubusercontent.com/gaskam/workspace/refs/heads/main/INSTALL") catch {
         try log(.default, "\n", .{});
@@ -49,30 +49,30 @@ pub fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u
 }
 
 // TODO
-pub fn threadedCheckConnection() !void {
-    return;
+pub fn threadedCheckConnection(allocator: std.mem.Allocator) !void {
+    _ = try std.Thread.spawn(.{}, assertConnection, .{ allocator });
     // var process = try std.Thread.spawn();
     // process.detach();
 }
 
 /// Checks if the user is connected to the internet
 /// Returns: NoInternetConnection error if no connection is available
-pub fn checkConnexion() void {
-    var socket = std.net.tcpConnectToHost(std.heap.page_allocator, "1.1.1.1", 53) catch |err| {
+pub fn assertConnection(allocator: std.mem.Allocator) void {
+    var socket = std.net.tcpConnectToHost(allocator, "1.1.1.1", 53) catch |err| {
         switch (err) {
             error.NetworkUnreachable,
             error.ConnectionRefused,
             error.ConnectionResetByPeer,
             error.ConnectionTimedOut,
             => {
-                try log(.err, "Oups! It seems that you are not connected to THE internet", .{});
-                try log(.info, "If you are a cute grandma, please connect to the internet", .{});
+                log(.err, "Oups! It seems that you are not connected to THE internet", .{}) catch {};
+                log(.info, "If you are a cute grandma, please connect to the internet", .{}) catch {};
             },
             else => {
-                try log(.err, "Unknown network error: {s}", .{@errorName(err)});
+                log(.err, "Unknown network error: {s}", .{@errorName(err)}) catch {};
             },
         }
         std.process.exit(1);
     };
-    defer socket.close();
+    socket.close();
 }

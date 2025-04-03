@@ -6,7 +6,7 @@ const std = @import("std");
 /// processes: Number of concurrent clone operations
 /// prune: Whether to remove repositories that no longer exist
 pub const CloneConfig = struct {
-    targetFolder: ?[]const u8,
+    targetFolder: ?[]const u8 = null,
     limit: ?[]const u8 = null,
     processes: usize,
     prune: bool = false,
@@ -19,8 +19,7 @@ pub fn parseArgs(
     args: []const []const u8,
 ) !CloneConfig {
     var usedArgs: usize = 0;
-    var config = CloneConfig{ .targetFolder = null, .processes = try std.Thread.getCpuCount() - 1 };
-    config.prune = true;
+    var config = CloneConfig{ .processes = try std.Thread.getCpuCount() - 1 };
     if (args.len == 0) {
         return config;
     }

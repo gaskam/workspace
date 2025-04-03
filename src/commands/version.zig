@@ -21,7 +21,7 @@ pub const definition: constants.Definition = .{
 fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
     _ = args;
     try log(.info, "{s}", .{constants.VERSION});
-    try network.threadedCheckConnection();
+    try network.threadedCheckConnection(allocator);
     const latestVersion = try network.checkForUpdates(allocator);
     if (latestVersion) {
         try log(.default, "\n", .{});

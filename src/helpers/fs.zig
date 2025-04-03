@@ -21,8 +21,11 @@ pub const Editors = enum {
 pub fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolder, path: []const u8, workspaceType: Editors, prune: bool) !void {
     //TODO remove temp "_ = prune;"
     _ = prune;
-    switch (workspaceType) {
+    switch_block: switch (workspaceType) {
         .none => return,
+        .auto => {
+            
+        },
         .VsCode, .SublimeText => {
             var buffer = std.ArrayList(u8).init(allocator);
             defer buffer.deinit();
@@ -47,7 +50,6 @@ pub fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolde
                 .data = buffer.items,
             });
         },
-        .auto => {},
     }
 }
 

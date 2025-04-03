@@ -22,7 +22,7 @@ pub const definition: constants.Definition = .{
 
 fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
     _ = args;
-    try network.threadedCheckConnection();
+    try network.threadedCheckConnection(allocator);
 
     const hasUpdate = try network.checkForUpdates(allocator);
     if (!hasUpdate) {

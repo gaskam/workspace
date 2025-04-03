@@ -72,17 +72,17 @@ pub const definition: constants.Definition = .{
 };
 
 fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
-    try network.threadedCheckConnection();
+    try network.threadedCheckConnection(allocator);
 
-    if (args.len < 3) {
+    if (args.len < 2) {
         try log(.err, "Missing required argument: <organization/user>", .{});
         return;
     }
 
     // Get repository owner name (user/org) from args or prompt
-    const name = args[2];
+    const name = args[1];
 
-    var config = try parseArgs(args[3..]);
+    var config = try parseArgs(args[2..]);
 
     if (config.limit != null and try std.fmt.parseInt(usize, config.limit.?, 10) == 0) {
         try log(.err, "Invalid cloning limit: 0", .{});
@@ -99,7 +99,7 @@ fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
         // Command ran fine, parsing the output
         0 => {
             const parsed = std.json.parseFromSlice([]constants.RepoInfo, allocator, list.stdout, .{}) catch |err| {
-                try log(.err, "Failed to parse repository list: {s}", .{list.stdout});
+                try log(.err, "Failed to parse repository list:\n{s}", .{list.stdout});
                 return err;
             };
             defer parsed.deinit();

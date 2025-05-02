@@ -24,7 +24,7 @@ pub fn generateWorkspace(allocator: std.mem.Allocator, folders: []WorkspaceFolde
     switch_block: switch (workspaceType) {
         .none => return,
         .auto => {
-            
+            if (std.fs.cwd().access(wor
         },
         .VsCode, .SublimeText => {
             var buffer = std.ArrayList(u8).init(allocator);

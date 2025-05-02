@@ -34,7 +34,7 @@ pub const ArgType = enum {
 };
 
 pub const Arg = struct {
-    name: []const u8,
+    name: [:0]const u8,
     description: []const u8,
     group: ArgType,
 };
@@ -45,7 +45,8 @@ pub const FlagsType = enum {
 };
 
 pub const Flag = struct {
-    name: []const u8,
+    name: [:0]const u8,
+    short_name: []const u8 = "",
     description: []const u8,
     group: FlagsType, 
 };

@@ -39,32 +39,32 @@ pub const definition: constants.Definition = .{
     } },
     .flags = &.{
         .{
-            .name = "--limit",
+            .name = "limit",
             .description = "Limit the number of repositories to clone",
             .group = .number,
         },
         .{
-            .name = "--processes",
+            .name = "processes",
             .description = "Limit the number of concurrent processes",
             .group = .number,
         },
         .{
-            .name = "--auto",
+            .name = "auto",
             .description = "Generates a workspace file",
             .group = .boolean,
         },
         .{
-            .name = "--code",
+            .name = "code",
             .description = "Generates a workspace file for VSCode",
             .group = .boolean,
         },
         .{
-            .name = "--sublime",
+            .name = "sublime",
             .description = "Generates a workspace file for Sublime Text",
             .group = .boolean,
         },
         .{
-            .name = "--prune",
+            .name = "prune",
             .description = "Delete repositories that do not belong to current user",
             .group = .boolean,
         },
@@ -82,14 +82,15 @@ fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
     // Get repository owner name (user/org) from args or prompt
     const name = args[1];
 
-    var config = try parseArgs(args[2..]);
+    const config = try parseArgs(definition, args[2..]);
 
-    if (config.limit != null and try std.fmt.parseInt(usize, config.limit.?, 10) == 0) {
-        try log(.err, "Invalid cloning limit: 0", .{});
+    if (config.flags.limit != null and config.flags.limit.? <= 0) {
+        try log(.err, "Invalid cloning limit: {d}", .{config.flags.limit.?});
         return;
     }
-
-    const list = try processHelper.run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "list", name, "--json", "nameWithOwner,name,owner", "--limit", config.limit orelse "100000" }), null);
+    
+    var buffer: [20]u8 = undefined;
+    const list = try processHelper.run(allocator, @constCast(&[_][]const u8{ "gh", "repo", "list", name, "--json", "nameWithOwner,name,owner", "--limit", try std.fmt.bufPrint(&buffer, "{d}", .{ config.flags.limit orelse 100000 }) }), null);
     defer {
         allocator.free(list.stdout);
         allocator.free(list.stderr);
@@ -109,20 +110,19 @@ fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
                 return;
             }
             // Handles if the user provides no name, which fallbacks to his own repositories
-            if (config.targetFolder == null)
-                config.targetFolder = parsed.value[0].owner.login;
+            const target_folder = if (config.optionals.destination.len == 0) parsed.value[0].owner.login else config.optionals.destination;
 
-            const created = try fs.createFolder(config.targetFolder.?);
+            const created = try fs.createFolder(target_folder);
 
             // Prune repositories that no longer exist in the user's/organization's account
-            if (!created and config.prune) {
-                try prune(allocator, parsed.value, config.targetFolder.?);
+            if (!created and config.flags.prune orelse false) {
+                try prune(allocator, parsed.value, target_folder);
             }
 
             var schedule = std.ArrayList(constants.RepoInfo).init(allocator);
             defer schedule.deinit();
 
-            var outputFolder = try std.fs.cwd().openDir(config.targetFolder.?, .{});
+            var outputFolder = try std.fs.cwd().openDir(target_folder, .{});
             defer outputFolder.close();
 
             var failed: usize = 0;
@@ -142,9 +142,9 @@ fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
             // Create a process pool for concurrent cloning
             var pool = ProcessPool.init(allocator);
 
-            for (0..@min(config.processes, schedule.items.len)) |_| {
+            for (0..@min(config.flags.processes orelse schedule.items.len, schedule.items.len)) |_| {
                 const repo = schedule.pop();
-                try pool.spawn(repo.?, config.targetFolder.?);
+                try pool.spawn(repo.?, target_folder);
             }
 
             while (pool.processes.len > 0) {
@@ -155,7 +155,7 @@ fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
                 }
 
                 if (schedule.pop()) |repo| {
-                    try pool.spawn(repo, config.targetFolder.?);
+                    try pool.spawn(repo, target_folder);
                 }
             }
 
@@ -174,7 +174,7 @@ fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
                 foldersList.appendAssumeCapacity(constants.WorkspaceFolder{ .path = repo.name });
             }
 
-            try fs.generateWorkspace(allocator, foldersList.items, config.targetFolder.?, .VsCode, false);
+            try fs.generateWorkspace(allocator, foldersList.items, target_folder, .VsCode, false);
         },
         // Probably just an invalid user/organization name
         1 => try log(.err, "{s}\n", .{list.stderr}),

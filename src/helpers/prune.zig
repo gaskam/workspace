@@ -14,22 +14,15 @@ const RepoInfo = constants.RepoInfo;
 /// targetFolder: Path to the folder containing repositories
 pub fn prune(allocator: std.mem.Allocator, list: []RepoInfo, targetFolder: []const u8) !void {
     // Create hash set with default capacity
-    var repo_set = std.StringHashMap(void).init(allocator);
-    defer repo_set.deinit();
+    var repo_set = std.StringHashMapUnmanaged(void).empty;
+    defer repo_set.deinit(allocator);
 
-    // Add repositories in chunks to avoid overflow
-    const chunk_size: u32 = 1024;
-    var i: usize = 0;
-    while (i < list.len) : (i += chunk_size) {
-        const end = @min(i + chunk_size, list.len);
-        try repo_set.ensureUnusedCapacity(@intCast(end - i));
-        for (list[i..end]) |repo| {
-            try repo_set.put(repo.name, {});
-        }
+    for (list) |repo| {
+        try repo_set.put(allocator, repo.name, {});
     }
 
-    var dir_to_remove = std.ArrayList([]const u8).init(allocator);
-    defer dir_to_remove.deinit();
+    var dir_to_remove = std.ArrayListUnmanaged([]const u8).empty;
+    defer dir_to_remove.deinit(allocator);
 
     // Collect directories to remove
     {
@@ -40,7 +33,7 @@ pub fn prune(allocator: std.mem.Allocator, list: []RepoInfo, targetFolder: []con
         while (try iter.next()) |entry| {
             if (entry.kind != .directory) continue;
             if (!repo_set.contains(entry.name)) {
-                try dir_to_remove.append(try allocator.dupe(u8, entry.name));
+                try dir_to_remove.append(allocator, try allocator.dupe(u8, entry.name));
             }
         }
     }

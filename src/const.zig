@@ -4,6 +4,7 @@ const std = @import("std");
 pub const VERSION = "1.3.3";
 pub const MAX_INPUT_LENGTH = 64;
 pub const MAX_HTTP_BUFFER = 256;
+pub const MAX_FILE_BUFFER = 32768;
 
 pub const isWindows = @import("builtin").os.tag == .windows;
 

@@ -10,6 +10,12 @@ const parseArgs = @import("../helpers/args.zig").parseArgs;
 const ProcessPool = @import("../helpers/pool.zig").ProcessPool;
 const prune = @import("../helpers/prune.zig").prune;
 
+const EditorType = @import("../helpers/fs.zig").Editors;
+const EditorConfigFile = struct{
+    type: EditorType,
+    content: []const u8,
+};
+
 const log = logHelper.log;
 const Colors = logHelper.Colors;
 
@@ -111,12 +117,25 @@ fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
             }
             // Handles if the user provides no name, which fallbacks to his own repositories
             const target_folder = if (config.optionals.destination.len == 0) parsed.value[0].owner.login else config.optionals.destination;
+            var target_folder_handle = try std.fs.cwd().openDir(target_folder, .{
+                .iterate = true,
+            });
+            defer target_folder_handle.close();
 
             const created = try fs.createFolder(target_folder);
 
+            var config_content: ?EditorConfigFile = null;
+            defer {
+                if (config_content != null) allocator.free(config_content.?.content);
+            }
+
             // Prune repositories that no longer exist in the user's/organization's account
-            if (!created and config.flags.prune orelse false) {
-                try prune(allocator, parsed.value, target_folder);
+            if (!created) {
+                if (config.flags.prune orelse false) {
+                    try prune(allocator, parsed.value, target_folder);
+                } else {
+                    config_content = try getEditorConfigFile(allocator, target_folder_handle);
+                }
             }
 
             var schedule = std.ArrayList(constants.RepoInfo).init(allocator);
@@ -186,4 +205,22 @@ fn execute(allocator: std.mem.Allocator, args: [][:0]u8) anyerror!void {
             try log(.err, "{s}", .{list.stderr});
         },
     }
+}
+
+fn getEditorConfigFile(allocator: std.mem.Allocator, target_folder: std.fs.Dir) !?EditorConfigFile {
+    var buffer: [constants.MAX_FILE_BUFFER]u8 = undefined;
+    
+    const vs_code_config = target_folder.readFile("workspace.code-workspace", &buffer) catch |err| switch (err) {
+        error.FileNotFound, error.IsDir => null,
+        else => return err,
+    };
+    if (vs_code_config != null) {
+        return .{
+            .type = .VsCode,
+            .content = try allocator.dupe(u8, vs_code_config.?),
+        };
+    }
+
+    //TODO
+    return null;
 }

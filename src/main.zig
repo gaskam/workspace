@@ -11,6 +11,7 @@ const command_definitions = @import("commands.zig").all;
 const commandsMap = blk: {
     const kvs = build_kvs: {
         const EnumKV = struct { []const u8, *const constants.Command };
+        // All command have at most one name and one alias
         var kvs_array: [command_definitions.len * 2]EnumKV = undefined;
         var i = 0;
         for (command_definitions) |definition| {

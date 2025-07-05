@@ -48,13 +48,11 @@ pub fn fetchUrlContent(allocator: std.mem.Allocator, url: []const u8) ![]const u
     return body;
 }
 
-// TODO
 pub fn threadedCheckConnection(allocator: std.mem.Allocator) !void {
     _ = try std.Thread.spawn(.{}, assertConnection, .{ allocator });
-    // var process = try std.Thread.spawn();
-    // process.detach();
 }
 
+// TODO: Add timeout to avoid hanging
 /// Checks if the user is connected to the internet
 /// Returns: NoInternetConnection error if no connection is available
 pub fn assertConnection(allocator: std.mem.Allocator) void {
